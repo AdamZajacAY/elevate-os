@@ -72,10 +72,19 @@ export function canReadAllProjects(role: Role): boolean {
 /**
  * Fragment `where` Prismy zawezajacy projekty do zakresu roli.
  * Zwraca `{}` dla rol z pelnym odczytem portfela.
+ *
+ * Trzy drogi do projektu: opiekun, wykonawca zadania i **czlonek zespolu**.
+ * Ta trzecia jest istotna: bez niej dodanie kogos do skladu nie dawaloby mu
+ * dostepu, dopoki nie dostal pierwszego zadania — a wtedy caly sklad zespolu
+ * bylby tylko ozdoba.
  */
 export function projectScopeWhere(role: Role, userId: string) {
   if (canReadAllProjects(role)) return {};
   return {
-    OR: [{ ownerId: userId }, { tasks: { some: { assigneeId: userId } } }],
+    OR: [
+      { ownerId: userId },
+      { tasks: { some: { assigneeId: userId } } },
+      { members: { some: { userId, leftAt: null } } },
+    ],
   };
 }

@@ -13,6 +13,17 @@ export const ROLE_LABEL: Record<Role, string> = {
   CONSULTANT: "Konsultant",
 };
 
+/** Rola w zespole projektowym — kto czym zajmuje sie w tym konkretnym projekcie. */
+export const PROJECT_MEMBER_ROLES = ["LIDER", "KONSULTANT", "WSPARCIE", "OBSERWATOR"] as const;
+export type ProjectMemberRole = (typeof PROJECT_MEMBER_ROLES)[number];
+
+export const PROJECT_MEMBER_ROLE_LABEL: Record<ProjectMemberRole, string> = {
+  LIDER: "Lider",
+  KONSULTANT: "Konsultant",
+  WSPARCIE: "Wsparcie",
+  OBSERWATOR: "Obserwator",
+};
+
 // ── Fazy metody Elevate (spec 07) ────────────────────────────────────────────
 export const PHASES = ["EXPLORE", "ENGINEER", "EXECUTE", "ELEVATE"] as const;
 export type Phase = (typeof PHASES)[number];

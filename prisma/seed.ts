@@ -364,6 +364,25 @@ async function main() {
   }
   await prisma.counter.update({ where: { key: "PRJ" }, data: { value: projects.length } });
 
+  console.log("→ Zespoły projektowe");
+  const memberSpecs: [number, string, string, number | null][] = [
+    // [indeks projektu, id osoby, rola, udzial FTE]
+    [0, consultantId, "LIDER", 0.6],
+    [0, consultant2Id, "WSPARCIE", 0.2],
+    [1, consultant2Id, "LIDER", 0.7],
+    [1, consultantId, "KONSULTANT", 0.3],
+    [2, consultantId, "LIDER", 0.4],
+    [3, partnerId, "LIDER", 0.15],
+    [3, consultant2Id, "OBSERWATOR", null],
+  ];
+  for (const [index, userId, role, allocation] of memberSpecs) {
+    await prisma.projectMember.upsert({
+      where: { projectId_userId: { projectId: projects[index].id, userId } },
+      update: { role, allocation },
+      create: { projectId: projects[index].id, userId, role, allocation },
+    });
+  }
+
   console.log("→ Harmonogram");
   const stageSpecs: [number, string, string, number, number, number][] = [
     // [indeks projektu, nazwa, faza, offset startu, offset konca, postep %]

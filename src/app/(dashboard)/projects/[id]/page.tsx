@@ -11,6 +11,7 @@ import { EditProjectButton } from "@/components/projects/EditProjectButton";
 import { Milestones } from "@/components/projects/Milestones";
 import { Risks } from "@/components/projects/Risks";
 import { ProjectStages } from "@/components/projects/ProjectStages";
+import { ProjectTeam } from "@/components/projects/ProjectTeam";
 import { MeetingNotes } from "@/components/projects/MeetingNotes";
 import { StatusReports } from "@/components/projects/StatusReports";
 import {
@@ -60,6 +61,10 @@ export default async function ProjectDetailPage({
       },
       milestones: { orderBy: { dueDate: "asc" } },
       experts: { include: { expert: { select: { fullName: true, specialty: true } } } },
+      members: {
+        include: { user: { select: { id: true, fullName: true, position: true } } },
+        orderBy: { joinedAt: "asc" },
+      },
       meetingNotes: {
         include: {
           author: { select: { fullName: true } },
@@ -269,6 +274,24 @@ export default async function ProjectDetailPage({
         {/* Checklista instancjonowana automatycznie z szablonu typu uslugi (spec 03) */}
         <ProjectChecklist items={project.checklist} />
       </div>
+
+      <ProjectTeam
+        projectId={project.id}
+        canEdit={mayEdit}
+        candidates={teamMembers}
+        members={project.members.map((m) => ({
+          id: m.id,
+          userId: m.user.id,
+          fullName: m.user.fullName,
+          position: m.user.position,
+          role: m.role,
+          allocation: m.allocation,
+          // Ile otwartych zadań ma ta osoba w tym projekcie — sygnał obciążenia.
+          openTasks: project.tasks.filter(
+            (t) => t.assigneeId === m.user.id && t.status !== "DONE",
+          ).length,
+        }))}
+      />
 
       <div className="grid gap-5 lg:grid-cols-2">
         <Milestones

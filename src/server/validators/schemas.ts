@@ -13,6 +13,7 @@ import {
   CLIENT_SEGMENTS,
   OPPORTUNITY_STAGES,
   IMPROVEMENT_STATUSES,
+  PROJECT_MEMBER_ROLES,
   WIN_FACTORS,
   LOSS_FACTORS,
 } from "@/lib/domain";
@@ -525,3 +526,23 @@ export const statusReportCreateSchema = z.object({
   summary: z.string().trim().min(10, "Podsumowanie ma minimum 10 znakow").max(4000),
   budgetNote: optionalText,
 });
+
+// ═══════════════════════════════════════════════════════════════════════════
+//  ZESPOL PROJEKTOWY
+// ═══════════════════════════════════════════════════════════════════════════
+
+const memberFields = {
+  role: z.enum(PROJECT_MEMBER_ROLES),
+  /// Udzial w projekcie jako ulamek etatu; 1 = pelny czas jednej osoby.
+  allocation: z.union([z.number().min(0).max(2), z.null()]).optional(),
+  leftAt: optionalDate,
+};
+
+export const projectMemberCreateSchema = z.object({
+  ...memberFields,
+  projectId: z.string().min(1),
+  userId: z.string().min(1),
+  role: memberFields.role.default("KONSULTANT"),
+});
+
+export const projectMemberUpdateSchema = nonEmptyPatch(z.object(memberFields).partial());

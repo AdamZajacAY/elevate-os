@@ -54,6 +54,7 @@ model User {
   updatedAt    DateTime  @updatedAt
 
   ownedProjects   Project[]           @relation("ProjectOwner")
+  projectRoles    ProjectMember[]
   tasks           Task[]              @relation("TaskAssignee")
   timeLogs        TimeLog[]
   riskOwnerships  Risk[]              @relation("RiskOwner")
@@ -283,6 +284,7 @@ model Project {
   updatedAt   DateTime @updatedAt
 
   stages        ProjectStage[]
+  members       ProjectMember[]
   tasks         Task[]
   checklist     ProjectChecklistItem[]
   risks         Risk[]
@@ -296,6 +298,32 @@ model Project {
   @@index([clientId])
   @@index([ownerId])
   @@map("projekty")
+}
+
+/// Sklad zespolu projektowego.
+///
+/// Przynaleznosc do projektu wynikala dotad wylacznie z przypisan zadan —
+/// osoba bez zadania nie istniala w projekcie, mimo ze mogla nim kierowac
+/// albo doradzac. To psulo tez obciazenie zespolu: nie dalo sie zaplanowac
+/// czyjegos udzialu, zanim powstalo pierwsze zadanie.
+model ProjectMember {
+  id        String  @id @default(cuid())
+  projectId String
+  project   Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  userId    String
+  user      User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  /// Rola w projekcie: LIDER | KONSULTANT | WSPARCIE | OBSERWATOR
+  role      String  @default("KONSULTANT")
+  /// Planowany udzial w projekcie, ulamek etatu (0.25 = cwierc czasu osoby)
+  allocation Float?
+
+  joinedAt  DateTime  @default(now())
+  leftAt    DateTime?
+
+  @@unique([projectId, userId])
+  @@index([userId])
+  @@map("zespoly_projektowe")
 }
 
 /// Etap harmonogramu — blok czasowy na wspolnym Gantcie wieloprojektowym.
