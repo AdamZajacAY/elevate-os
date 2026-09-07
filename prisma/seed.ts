@@ -1,10 +1,7 @@
 import "dotenv/config";
-import { PrismaClient } from "../generated/prisma/client";
-import { PrismaPg } from "@prisma/adapter-pg";
+// Wspólny klient — konfiguracja SSL dla zdalnych baz w jednym miejscu.
+import { prisma } from "../src/lib/prisma";
 import bcrypt from "bcryptjs";
-
-const adapter = new PrismaPg({ connectionString: process.env.DATABASE_URL! });
-const prisma = new PrismaClient({ adapter });
 
 const day = 86_400_000;
 const today = new Date();

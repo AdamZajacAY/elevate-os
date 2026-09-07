@@ -1,7 +1,9 @@
 import "dotenv/config";
 import bcrypt from "bcryptjs";
-import { PrismaClient } from "../generated/prisma/client";
-import { PrismaPg } from "@prisma/adapter-pg";
+// Wspólny klient, nie własna instancja: konfiguracja SSL dla połączeń zdalnych
+// (Render wymaga TLS) żyje w jednym miejscu. Własny `new PrismaPg({...})` bez SSL
+// kończył się tutaj błędem "User was denied access on the database".
+import { prisma } from "../src/lib/prisma";
 
 /**
  * Zakłada pierwsze konto administratora na świeżym wdrożeniu.
@@ -17,10 +19,6 @@ import { PrismaPg } from "@prisma/adapter-pg";
  * Skrypt jest idempotentny: istniejące konto dostaje rolę ADMIN i nowe hasło,
  * zamiast tworzyć duplikat.
  */
-
-const prisma = new PrismaClient({
-  adapter: new PrismaPg({ connectionString: process.env.DATABASE_URL! }),
-});
 
 async function main() {
   const email = process.env.ADMIN_EMAIL?.trim().toLowerCase();
