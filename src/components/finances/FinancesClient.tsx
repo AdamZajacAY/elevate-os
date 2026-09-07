@@ -7,6 +7,7 @@ import { Pill, ragTone } from "@/components/ui/Pill";
 import { EmptyState } from "@/components/ui/EmptyState";
 import {
   OPPORTUNITY_STAGE_LABEL,
+  BILLING_PERIOD_LABEL,
   PHASE_LABEL,
   CLIENT_SEGMENT_LABEL,
   ROLE_LABEL,
@@ -61,6 +62,9 @@ export function FinancesClient({
   const margin = revenue - cost;
   const marginPct = revenue === 0 ? null : Math.round((margin / revenue) * 100);
   const pipelineWeighted = pipeline.reduce((sum, s) => sum + s.weightedValue, 0);
+  // Przychód powtarzalny — to, co firma ma co miesiąc bez nowej sprzedaży.
+  const mrr = active.reduce((sum, p) => sum + p.mrr, 0);
+  const recurringCount = active.filter((p) => p.billingModel === "ABONAMENT").length;
 
   return (
     <div className="space-y-6">
@@ -84,7 +88,7 @@ export function FinancesClient({
         </button>
       </header>
 
-      <div className="grid grid-cols-2 gap-3.5 lg:grid-cols-4">
+      <div className="grid grid-cols-2 gap-3.5 lg:grid-cols-5">
         <StatTile
           label="Przychód"
           value={formatMoney(revenue) ?? "—"}
@@ -95,6 +99,12 @@ export function FinancesClient({
           label="Marża"
           value={`${formatMoney(margin) ?? "—"}${marginPct !== null ? ` · ${marginPct}%` : ""}`}
           tone={marginTone(marginPct)}
+        />
+        <StatTile
+          label="Przychód powtarzalny"
+          value={formatMoney(mrr) ?? "—"}
+          hint={`miesięcznie · ${recurringCount} ${recurringCount === 1 ? "abonament" : "abonamentów"}`}
+          tone={mrr > 0 ? "good" : "ink"}
         />
         <StatTile
           label="Pipeline ważony"
@@ -189,7 +199,8 @@ export function FinancesClient({
                   <th className="px-4 py-3 text-right">Godziny</th>
                   <th className="px-4 py-3 text-right">Koszt pracy</th>
                   <th className="px-4 py-3 text-right">Podwykonawcy</th>
-                  <th className="px-4 py-3 text-right">Wartość umowy</th>
+                  <th className="px-4 py-3">Rozliczenie</th>
+                  <th className="px-4 py-3 text-right">Przychód</th>
                   <th className="px-4 py-3 text-right">Marża</th>
                 </tr>
               </thead>
@@ -218,8 +229,21 @@ export function FinancesClient({
                     <td className="px-4 py-2.5 text-right font-mono text-[11.5px] text-ink-soft">
                       {p.subcontractorCost > 0 ? formatMoney(p.subcontractorCost) : "—"}
                     </td>
+                    <td className="px-4 py-2.5 text-[11.5px] text-ink-soft">
+                      {p.billingModel === "ABONAMENT" ? (
+                        <>
+                          {formatMoney(p.recurringAmount)} /{" "}
+                          {labelOf(BILLING_PERIOD_LABEL, p.billingPeriod ?? "").toLowerCase()}
+                          {p.isOpenEnded && (
+                            <span className="ml-1 text-muted">· bezterminowo</span>
+                          )}
+                        </>
+                      ) : (
+                        "jednorazowo"
+                      )}
+                    </td>
                     <td className="px-4 py-2.5 text-right font-mono text-[12px] text-ink">
-                      {formatMoney(p.contractValue) ?? "—"}
+                      {formatMoney(p.revenue) ?? "—"}
                     </td>
                     <td className="px-4 py-2.5 text-right">
                       <span

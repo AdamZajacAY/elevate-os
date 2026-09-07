@@ -66,6 +66,39 @@ export const SERVICE_TYPE_LABEL: Record<ServiceType, string> = {
   EKSPANSJA_CROSS_BORDER: "Ekspansja cross-border",
 };
 
+// ── Rozliczenie projektu ─────────────────────────────────────────────────────
+
+/**
+ * Model rozliczenia. Projekt doradczy bywa jednorazowy (audyt, strategia)
+ * albo abonamentowy (stala opieka, interim) — a to dwie rozne rzeczy finansowo:
+ * jednorazowy ma wartosc umowy, abonament ma kwote za okres i moze nie miec konca.
+ */
+export const BILLING_MODELS = ["JEDNORAZOWY", "ABONAMENT"] as const;
+export type BillingModel = (typeof BILLING_MODELS)[number];
+
+export const BILLING_MODEL_LABEL: Record<BillingModel, string> = {
+  JEDNORAZOWY: "Jednorazowy",
+  ABONAMENT: "Abonament",
+};
+
+export const BILLING_PERIODS = ["MIESIECZNY", "KWARTALNY", "POLROCZNY", "ROCZNY"] as const;
+export type BillingPeriod = (typeof BILLING_PERIODS)[number];
+
+export const BILLING_PERIOD_LABEL: Record<BillingPeriod, string> = {
+  MIESIECZNY: "Miesięcznie",
+  KWARTALNY: "Kwartalnie",
+  POLROCZNY: "Półrocznie",
+  ROCZNY: "Rocznie",
+};
+
+/** Ile miesiecy trwa jeden okres — podstawa przeliczen na wartosc miesieczna. */
+export const BILLING_PERIOD_MONTHS: Record<BillingPeriod, number> = {
+  MIESIECZNY: 1,
+  KWARTALNY: 3,
+  POLROCZNY: 6,
+  ROCZNY: 12,
+};
+
 // ── Zadania ──────────────────────────────────────────────────────────────────
 export const TASK_STATUSES = ["TODO", "IN_PROGRESS", "REVIEW", "BLOCKED", "DONE"] as const;
 export type TaskStatus = (typeof TASK_STATUSES)[number];

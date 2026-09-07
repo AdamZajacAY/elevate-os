@@ -316,8 +316,16 @@ async function main() {
       startDate: at(-14),
       endDate: at(150),
       quotedValue: 96000,
-      contractValue: 96000,
+      // Abonament bezterminowy: wartości umowy nie ma, bo umowa nie ma końca.
+      // Przychód liczy się z okresów, które minęły.
+      contractValue: null,
       budget: 52000,
+      billingModel: "ABONAMENT",
+      billingPeriod: "MIESIECZNY",
+      recurringAmount: 8000,
+      billingStartDate: at(-14),
+      billingEndDate: null,
+      noticePeriodDays: 30,
     },
   ];
 

@@ -260,8 +260,24 @@ model Project {
 
   // ── pola finansowe — redagowane (null) dla rol bez uprawnienia (spec 04/06) ──
   budget        Float?
+  /// Wartosc umowy — dla projektu jednorazowego calosc, dla abonamentu na czas
+  /// okreslony suma okresow. Dla abonamentu bezterminowego zostaje null:
+  /// nie da sie podac calkowitej wartosci umowy, ktora nie ma konca.
   contractValue Float?
   quotedValue   Float?
+
+  // ── rozliczenie cykliczne (projekty abonamentowe) ──
+  /// JEDNORAZOWY | ABONAMENT
+  billingModel  String   @default("JEDNORAZOWY")
+  /// MIESIECZNY | KWARTALNY | POLROCZNY | ROCZNY — tylko dla abonamentu
+  billingPeriod String?
+  /// Kwota za jeden okres rozliczeniowy. Pole finansowe.
+  recurringAmount Float?
+  billingStartDate DateTime?
+  /// null przy abonamencie = czas nieokreslony, do wypowiedzenia
+  billingEndDate   DateTime?
+  /// Okres wypowiedzenia w dniach — istotny przy abonamencie bezterminowym
+  noticePeriodDays Int?
 
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt

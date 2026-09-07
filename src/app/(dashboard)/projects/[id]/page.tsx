@@ -12,6 +12,8 @@ import { StatusReports } from "@/components/projects/StatusReports";
 import {
   PHASE_LABEL,
   PROJECT_STATUS_LABEL,
+  BILLING_MODEL_LABEL,
+  BILLING_PERIOD_LABEL,
   SERVICE_TYPE_LABEL,
   TASK_STATUS_LABEL,
   PRIORITY_LABEL,
@@ -101,7 +103,8 @@ export default async function ProjectDetailPage({
           <p className="mt-1 text-[13.5px] text-ink-soft">
             {project.client.name}
             {project.client.industry ? ` · ${project.client.industry}` : ""} ·{" "}
-            {labelOf(SERVICE_TYPE_LABEL, project.serviceType)} · opiekun:{" "}
+            {labelOf(SERVICE_TYPE_LABEL, project.serviceType)} ·{" "}
+            {labelOf(BILLING_MODEL_LABEL, project.billingModel)} · opiekun:{" "}
             {project.owner?.fullName ?? "nieprzypisany"}
           </p>
         </div>
@@ -130,16 +133,39 @@ export default async function ProjectDetailPage({
           value={String(openRisks)}
           tone={openRisks > 0 ? "warn" : "good"}
         />
-        <StatTile
-          label="Wartość umowy"
-          tone="accent"
-          value={showMoney ? (formatMoney(project.contractValue) ?? "—") : <RedactedValue />}
-          hint={
-            showMoney
-              ? `budżet ${formatMoney(project.budget) ?? "—"}`
-              : "pole zredagowane dla Twojej roli"
-          }
-        />
+        {project.billingModel === "ABONAMENT" ? (
+          <StatTile
+            label="Abonament"
+            tone="accent"
+            value={
+              showMoney ? (
+                project.recurringAmount !== null ? (
+                  `${formatMoney(project.recurringAmount)} / ${labelOf(BILLING_PERIOD_LABEL, project.billingPeriod ?? "").toLowerCase()}`
+                ) : (
+                  "—"
+                )
+              ) : (
+                <RedactedValue />
+              )
+            }
+            hint={
+              project.billingEndDate
+                ? `do ${formatDate(project.billingEndDate)}`
+                : "czas nieokreślony — do wypowiedzenia"
+            }
+          />
+        ) : (
+          <StatTile
+            label="Wartość umowy"
+            tone="accent"
+            value={showMoney ? (formatMoney(project.contractValue) ?? "—") : <RedactedValue />}
+            hint={
+              showMoney
+                ? `budżet ${formatMoney(project.budget) ?? "—"}`
+                : "pole zredagowane dla Twojej roli"
+            }
+          />
+        )}
       </div>
 
       {project.description && (

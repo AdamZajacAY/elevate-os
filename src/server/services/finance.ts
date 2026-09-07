@@ -1,5 +1,9 @@
 import { prisma } from "@/lib/prisma";
-import type { Role } from "@/lib/domain";
+import {
+  BILLING_PERIOD_MONTHS,
+  type BillingPeriod,
+  type Role,
+} from "@/lib/domain";
 import { canSeeFinancials } from "@/lib/rbac";
 
 /**
@@ -13,12 +17,74 @@ import { canSeeFinancials } from "@/lib/rbac";
  * stawke uzytkownika, gdy wpis powstal przed wprowadzeniem stawki.
  */
 
+/**
+ * Przychod projektu abonamentowego.
+ *
+ * Wartosc umowy nie opisuje abonamentu: przy umowie bezterminowej jej po prostu
+ * nie ma, a przy terminowej myli sie z tym, co juz zafakturowano. Liczymy wiec
+ * przychod **do dzisiaj** — kwota za okres razy liczba okresow, ktore minely.
+ *
+ * Okres liczy sie jako rozpoczety: klient placi z gory za caly miesiac,
+ * wiec pierwszego dnia okresu przychod juz istnieje.
+ */
+function recurringRevenueToDate(p: {
+  billingModel: string;
+  billingPeriod: string | null;
+  recurringAmount: number | null;
+  billingStartDate: Date | null;
+  billingEndDate: Date | null;
+}): number | null {
+  if (p.billingModel !== "ABONAMENT") return null;
+  if (!p.billingPeriod || p.recurringAmount === null || !p.billingStartDate) return null;
+
+  const months = BILLING_PERIOD_MONTHS[p.billingPeriod as BillingPeriod];
+  if (!months) return null;
+
+  const now = new Date();
+  // Umowa zakonczona nie nalicza sie dalej.
+  const until = p.billingEndDate && p.billingEndDate < now ? p.billingEndDate : now;
+  if (until < p.billingStartDate) return 0;
+
+  const monthsElapsed =
+    (until.getFullYear() - p.billingStartDate.getFullYear()) * 12 +
+    (until.getMonth() - p.billingStartDate.getMonth()) +
+    (until.getDate() >= p.billingStartDate.getDate() ? 0 : -1);
+
+  const periods = Math.floor(monthsElapsed / months) + 1;
+  return Math.max(periods, 0) * p.recurringAmount;
+}
+
+/** Wartosc miesieczna abonamentu (MRR) — porownywalna miedzy okresami rozliczeniowymi. */
+function monthlyRecurring(p: {
+  billingModel: string;
+  billingPeriod: string | null;
+  recurringAmount: number | null;
+  billingEndDate: Date | null;
+  status: string;
+}): number {
+  if (p.billingModel !== "ABONAMENT" || p.status === "CLOSED") return 0;
+  if (!p.billingPeriod || p.recurringAmount === null) return 0;
+  // Umowa, ktora juz sie skonczyla, nie generuje przychodu powtarzalnego.
+  if (p.billingEndDate && p.billingEndDate < new Date()) return 0;
+
+  const months = BILLING_PERIOD_MONTHS[p.billingPeriod as BillingPeriod];
+  return months ? p.recurringAmount / months : 0;
+}
+
 export type ProjectFinance = {
   id: string;
   code: string;
   name: string;
   clientId: string;
   clientName: string;
+  billingModel: string;
+  billingPeriod: string | null;
+  recurringAmount: number | null;
+  /// Przychod naliczony do dzisiaj — dla abonamentu z okresow, dla jednorazowego wartosc umowy
+  revenue: number | null;
+  /// Miesieczny przychod powtarzalny; 0 dla projektow jednorazowych
+  mrr: number;
+  isOpenEnded: boolean;
   phase: string;
   status: string;
   ragStatus: string;
@@ -55,11 +121,15 @@ export async function getProjectFinance(): Promise<ProjectFinance[]> {
 
     // Marza tylko tam, gdzie jest z czego liczyc — projekt bez wartosci umowy
     // nie ma marzy zero, ma marze nieznana.
-    const margin = p.contractValue === null ? null : p.contractValue - totalCost;
+    // Przychod: abonament liczy sie z okresow, jednorazowy z wartosci umowy.
+    const recurring = recurringRevenueToDate(p);
+    const revenue = recurring ?? p.contractValue;
+
+    const margin = revenue === null ? null : revenue - totalCost;
     const marginPct =
-      p.contractValue === null || p.contractValue === 0
+      revenue === null || revenue === 0
         ? null
-        : Math.round(((p.contractValue - totalCost) / p.contractValue) * 100);
+        : Math.round(((revenue - totalCost) / revenue) * 100);
 
     return {
       id: p.id,
@@ -72,6 +142,13 @@ export async function getProjectFinance(): Promise<ProjectFinance[]> {
       ragStatus: p.ragStatus,
       contractValue: p.contractValue,
       budget: p.budget,
+      billingModel: p.billingModel,
+      billingPeriod: p.billingPeriod,
+      recurringAmount: p.recurringAmount,
+      revenue,
+      mrr: monthlyRecurring(p),
+      // Abonament bez daty konca — trwa do wypowiedzenia.
+      isOpenEnded: p.billingModel === "ABONAMENT" && p.billingEndDate === null,
       laborCost,
       subcontractorCost,
       totalCost,
@@ -112,7 +189,7 @@ export async function getClientFinance(projects: ProjectFinance[]): Promise<Clie
   return clients
     .map((c) => {
       const rows = byClientId.get(c.id) ?? [];
-      const revenue = rows.reduce((sum, r) => sum + (r.contractValue ?? 0), 0);
+      const revenue = rows.reduce((sum, r) => sum + (r.revenue ?? 0), 0);
       const cost = rows.reduce((sum, r) => sum + r.totalCost, 0);
       return {
         clientId: c.id,
@@ -284,8 +361,9 @@ export async function getExecutiveReport(role: Role) {
   const clients = await getClientFinance(projects);
 
   const active = projects.filter((p) => p.status !== "CLOSED");
-  const revenue = active.reduce((sum, p) => sum + (p.contractValue ?? 0), 0);
+  const revenue = active.reduce((sum, p) => sum + (p.revenue ?? 0), 0);
   const cost = active.reduce((sum, p) => sum + p.totalCost, 0);
+  const mrr = active.reduce((sum, p) => sum + p.mrr, 0);
 
   return {
     generatedAt: new Date().toISOString(),
@@ -297,6 +375,9 @@ export async function getExecutiveReport(role: Role) {
       marginPct: revenue === 0 ? null : Math.round(((revenue - cost) / revenue) * 100),
       hours: active.reduce((sum, p) => sum + p.hours, 0),
       pipelineWeighted: pipeline.reduce((sum, s) => sum + s.weightedValue, 0),
+      // Przychod powtarzalny — baza, ktora firma ma co miesiac bez nowej sprzedazy.
+      mrr,
+      recurringProjects: active.filter((p) => p.billingModel === "ABONAMENT").length,
     },
     projects,
     clients,

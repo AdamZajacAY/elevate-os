@@ -1,5 +1,7 @@
 import { z } from "zod";
 import {
+  BILLING_MODELS,
+  BILLING_PERIODS,
   PHASES,
   PRIORITIES,
   PROJECT_STATUSES,
@@ -97,17 +99,43 @@ const projectFields = {
   budget: optionalMoney,
   contractValue: optionalMoney,
   quotedValue: optionalMoney,
+  billingModel: z.enum(BILLING_MODELS),
+  billingPeriod: z.union([z.enum(BILLING_PERIODS), z.null()]).optional(),
+  recurringAmount: optionalMoney,
+  billingStartDate: optionalDate,
+  billingEndDate: optionalDate,
+  noticePeriodDays: z.union([z.number().int().min(0).max(365), z.null()]).optional(),
 };
 
-export const projectCreateSchema = z.object({
-  ...projectFields,
-  phase: projectFields.phase.default("EXPLORE"),
-  status: projectFields.status.default("ACTIVE"),
-});
+/**
+ * Abonament bez okresu rozliczeniowego albo bez kwoty to nie abonament —
+ * nie da sie z niego policzyc ani przychodu, ani wartosci miesiecznej.
+ */
+function requireRecurringFields<T extends { billingModel?: string; billingPeriod?: unknown; recurringAmount?: unknown }>(
+  value: T,
+): boolean {
+  if (value.billingModel !== "ABONAMENT") return true;
+  return !!value.billingPeriod && typeof value.recurringAmount === "number";
+}
+
+export const projectCreateSchema = z
+  .object({
+    ...projectFields,
+    phase: projectFields.phase.default("EXPLORE"),
+    status: projectFields.status.default("ACTIVE"),
+    billingModel: projectFields.billingModel.default("JEDNORAZOWY"),
+  })
+  .refine(requireRecurringFields, {
+    message: "Abonament wymaga okresu rozliczeniowego i kwoty za okres",
+    path: ["recurringAmount"],
+  });
 
 export const projectUpdateSchema = nonEmptyPatch(
   z.object({ ...projectFields, ragStatus: z.enum(RAG_STATUSES) }).partial(),
-);
+).refine(requireRecurringFields, {
+  message: "Abonament wymaga okresu rozliczeniowego i kwoty za okres",
+  path: ["recurringAmount"],
+});
 
 // ═══════════════════════════════════════════════════════════════════════════
 //  ZADANIA

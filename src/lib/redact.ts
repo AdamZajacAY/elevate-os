@@ -11,7 +11,7 @@ import { canSeeFinancials } from "@/lib/rbac";
 
 /** Pola finansowe per encja — zmiana schematu wymaga aktualizacji tej mapy. */
 const FINANCIAL_FIELDS = {
-  project: ["budget", "contractValue", "quotedValue"],
+  project: ["budget", "contractValue", "quotedValue", "recurringAmount"],
   user: ["hourlyRate"],
   expert: ["hourlyRate"],
   projectExpert: ["contractValue"],

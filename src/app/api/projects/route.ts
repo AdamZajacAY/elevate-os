@@ -39,23 +39,13 @@ export const POST = withAuth("projects", async (user, req) => {
   const client = await prisma.client.findUnique({ where: { id: data.clientId } });
   if (!client) return fail(422, "Wskazany klient nie istnieje");
 
+  // Rola bez uprawnien finansowych nie dochodzi tutaj — POST jest zablokowany
+  // dla konsultanta wyzej, wiec pola finansowe moga isc wprost.
   const code = await nextCode("PRJ");
+  // Przekazujemy zwalidowane dane w calosci, a nie przepisana recznie liste pol:
+  // przy recznej liscie kazde nowe pole schematu bylo po cichu gubione przy zapisie.
   const project = await prisma.project.create({
-    data: {
-      code,
-      name: data.name,
-      clientId: data.clientId,
-      serviceType: data.serviceType,
-      ownerId: data.ownerId ?? user.id,
-      phase: data.phase,
-      status: data.status,
-      description: data.description,
-      startDate: data.startDate,
-      endDate: data.endDate,
-      budget: data.budget,
-      contractValue: data.contractValue,
-      quotedValue: data.quotedValue,
-    },
+    data: { ...data, code, ownerId: data.ownerId ?? user.id },
   });
 
   // Checklista instancjonowana automatycznie z szablonu typu uslugi (spec 03).

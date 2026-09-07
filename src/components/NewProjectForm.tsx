@@ -3,6 +3,10 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import {
+  BILLING_MODELS,
+  BILLING_MODEL_LABEL,
+  BILLING_PERIODS,
+  BILLING_PERIOD_LABEL,
   PHASES,
   PHASE_LABEL,
   PROJECT_STATUSES,
@@ -32,6 +36,10 @@ export function NewProjectForm({
   const router = useRouter();
   const [error, setError] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
+  // Pola abonamentu pokazujemy dopiero po jego wybraniu — przy projekcie
+  // jednorazowym byłyby pustym szumem.
+  const [billingModel, setBillingModel] = useState("JEDNORAZOWY");
+  const [openEnded, setOpenEnded] = useState(false);
 
   async function onSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -54,11 +62,22 @@ export function NewProjectForm({
       description: String(form.get("description") ?? ""),
       startDate: String(form.get("startDate") ?? "") || null,
       endDate: String(form.get("endDate") ?? "") || null,
+      billingModel,
+      ...(billingModel === "ABONAMENT"
+        ? {
+            billingPeriod: String(form.get("billingPeriod") ?? "MIESIECZNY"),
+            billingStartDate: String(form.get("billingStartDate") ?? "") || null,
+            // Czas nieokreślony = brak daty końca; umowa trwa do wypowiedzenia.
+            billingEndDate: openEnded ? null : String(form.get("billingEndDate") ?? "") || null,
+            noticePeriodDays: Number(String(form.get("noticePeriodDays") ?? "").trim() || 0) || null,
+          }
+        : { billingPeriod: null, recurringAmount: null }),
       ...(showFinancials
         ? {
             budget: num("budget"),
             contractValue: num("contractValue"),
             quotedValue: num("quotedValue"),
+            ...(billingModel === "ABONAMENT" ? { recurringAmount: num("recurringAmount") } : {}),
           }
         : {}),
     };
@@ -174,6 +193,89 @@ export function NewProjectForm({
           <DateField  name="endDate" className={field} />
         </label>
       </div>
+
+      <fieldset className="rounded-xl border border-border p-4">
+        <legend className="px-2 font-mono text-[10.5px] uppercase tracking-wider text-accent">
+          Rozliczenie
+        </legend>
+
+        <div className="grid gap-4 sm:grid-cols-2">
+          <label className="block">
+            <span className={labelClass}>Model</span>
+            <select
+              value={billingModel}
+              onChange={(e) => setBillingModel(e.target.value)}
+              className={field}
+            >
+              {BILLING_MODELS.map((m) => (
+                <option key={m} value={m}>
+                  {BILLING_MODEL_LABEL[m]}
+                </option>
+              ))}
+            </select>
+          </label>
+
+          {billingModel === "ABONAMENT" && (
+            <label className="block">
+              <span className={labelClass}>Okres rozliczeniowy</span>
+              <select name="billingPeriod" className={field} defaultValue="MIESIECZNY">
+                {BILLING_PERIODS.map((b) => (
+                  <option key={b} value={b}>
+                    {BILLING_PERIOD_LABEL[b]}
+                  </option>
+                ))}
+              </select>
+            </label>
+          )}
+        </div>
+
+        {billingModel === "ABONAMENT" && (
+          <>
+            <div className="mt-4 grid gap-4 sm:grid-cols-2">
+              {showFinancials && (
+                <label className="block">
+                  <span className={labelClass}>Kwota za okres (PLN)</span>
+                  <input name="recurringAmount" inputMode="decimal" className={field} />
+                </label>
+              )}
+              <label className="block">
+                <span className={labelClass}>Start rozliczeń</span>
+                <DateField name="billingStartDate" className={field} />
+              </label>
+            </div>
+
+            <label className="mt-4 flex items-center gap-2.5">
+              <input
+                type="checkbox"
+                checked={openEnded}
+                onChange={(e) => setOpenEnded(e.target.checked)}
+                className="h-4 w-4 accent-[var(--accent-deep)]"
+              />
+              <span className="text-[13px] text-ink-soft">
+                Czas nieokreślony — umowa trwa do wypowiedzenia
+              </span>
+            </label>
+
+            <div className="mt-4 grid gap-4 sm:grid-cols-2">
+              {!openEnded && (
+                <label className="block">
+                  <span className={labelClass}>Koniec rozliczeń</span>
+                  <DateField name="billingEndDate" className={field} />
+                </label>
+              )}
+              <label className="block">
+                <span className={labelClass}>Okres wypowiedzenia (dni)</span>
+                <input name="noticePeriodDays" type="number" min={0} max={365} className={field} />
+              </label>
+            </div>
+
+            <p className="mt-3 text-[12px] text-muted">
+              Przychód abonamentu liczy się z okresów, które minęły — nie z wartości umowy.
+              Przy czasie nieokreślonym wartość umowy zostaw pustą.
+            </p>
+          </>
+        )}
+      </fieldset>
 
       {showFinancials && (
         <fieldset className="rounded-xl border border-border p-4">
