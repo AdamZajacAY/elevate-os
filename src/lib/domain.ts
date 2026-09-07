@@ -149,14 +149,18 @@ export const CLIENT_SEGMENT_LABEL: Record<ClientSegment, string> = {
 /**
  * Pipeline sprzedazowy AdviseYou. Etapy odzwierciedlaja realny proces:
  * od rozmowy diagnostycznej, przez przygotowanie i wyslanie oferty, po decyzje klienta.
- * Ostatni etap jest rozstrzygajacy — szansa konczy sie tam wygrana albo przegrana.
+ *
+ * Zakup i odmowa to **dwa osobne etapy koncowe**, nie jeden wspolny. Na tablicy
+ * widac wtedy od razu, ile spraw sie domknelo, a ile przepadlo — przy jednej
+ * kolumnie trzeba bylo czytac status kazdej karty osobno.
  */
 export const OPPORTUNITY_STAGES = [
   "KONSULTACJE",
   "OFERTA_W_PRZYGOTOWANIU",
   "OFERTA_WYSLANA",
   "WERYFIKACJA_OFERTY",
-  "ZAKUP_LUB_ODMOWA",
+  "ZAKUP",
+  "ODMOWA",
 ] as const;
 export type OpportunityStage = (typeof OPPORTUNITY_STAGES)[number];
 
@@ -165,7 +169,8 @@ export const OPPORTUNITY_STAGE_LABEL: Record<OpportunityStage, string> = {
   OFERTA_W_PRZYGOTOWANIU: "Oferta w przygotowaniu",
   OFERTA_WYSLANA: "Wysłana oferta",
   WERYFIKACJA_OFERTY: "Weryfikacja oferty",
-  ZAKUP_LUB_ODMOWA: "Zakup lub odmowa",
+  ZAKUP: "Zakup",
+  ODMOWA: "Odmowa",
 };
 
 export const OPPORTUNITY_STAGE_HINT: Record<OpportunityStage, string> = {
@@ -173,11 +178,30 @@ export const OPPORTUNITY_STAGE_HINT: Record<OpportunityStage, string> = {
   OFERTA_W_PRZYGOTOWANIU: "Zakres i wycena po naszej stronie",
   OFERTA_WYSLANA: "Oferta u klienta, czekamy na reakcję",
   WERYFIKACJA_OFERTY: "Klient analizuje, negocjacje i pytania",
-  ZAKUP_LUB_ODMOWA: "Etap rozstrzygający — decyzja klienta",
+  ZAKUP: "Podpisane — do konwersji w projekt",
+  ODMOWA: "Nie doszło do współpracy",
 };
 
-/** Etap, na ktorym zapada decyzja — tam wymagamy zamkniecia szansy z czynnikami. */
-export const DECISION_STAGE: OpportunityStage = "ZAKUP_LUB_ODMOWA";
+/**
+ * Kolor naglowka kolumny. Lejek idzie od chlodnego do nasyconego granatu,
+ * a etapy koncowe wychodza z tej skali — zielony i czerwony — bo oznaczaja
+ * rozstrzygniecie, nie kolejny krok procesu.
+ */
+export const OPPORTUNITY_STAGE_COLOR: Record<OpportunityStage, string> = {
+  KONSULTACJE: "#7EA6E0",
+  OFERTA_W_PRZYGOTOWANIU: "#5F8FE0",
+  OFERTA_WYSLANA: "#3E72CC",
+  WERYFIKACJA_OFERTY: "#194A99",
+  ZAKUP: "var(--good)",
+  ODMOWA: "var(--crit)",
+};
+
+/** Etapy koncowe — szansa dociera tam wylacznie przez zamkniecie z czynnikami. */
+export const TERMINAL_STAGES: readonly OpportunityStage[] = ["ZAKUP", "ODMOWA"];
+
+export function isTerminalStage(stage: string): boolean {
+  return (TERMINAL_STAGES as readonly string[]).includes(stage);
+}
 
 // ── Czynniki decyzji (spec 05 — nauka z wygranych i przegranych) ─────────────
 

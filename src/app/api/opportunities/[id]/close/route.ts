@@ -37,8 +37,9 @@ export const POST = withAuth<Ctx>("crm", async (user, req, ctx) => {
       lossFactors: data.status === "LOST" ? data.lossFactors : [],
       decisionNote: data.decisionNote,
       closedAt: new Date(),
-      // Ostatni etap jest rozstrzygajacy — po zamknieciu szansa tam zostaje.
-      stage: "ZAKUP_LUB_ODMOWA",
+      // Zakup i odmowa to osobne etapy koncowe — szansa ladu­je w tym, ktory
+      // odpowiada rozstrzygnieciu, i widac ja na tablicy bez czytania statusu.
+      stage: data.status === "WON" ? "ZAKUP" : "ODMOWA",
     },
   });
 

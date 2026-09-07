@@ -9,7 +9,8 @@ import {
   OPPORTUNITY_STAGE_LABEL,
   OPPORTUNITY_STAGE_HINT,
   SERVICE_TYPE_LABEL,
-  DECISION_STAGE,
+  OPPORTUNITY_STAGE_COLOR,
+  isTerminalStage,
   WIN_FACTOR_LABEL,
   LOSS_FACTOR_LABEL,
   type OpportunityStage,
@@ -106,14 +107,20 @@ export function CrmPipeline({
         </p>
       )}
 
-      <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+      <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
         {OPPORTUNITY_STAGES.map((stage) => {
-          const stageRows = open.filter((o) => o.stage === stage);
+          // Etapy koncowe zbieraja szanse zamkniete; pozostale — otwarte.
+          const stageRows = isTerminalStage(stage)
+            ? rows.filter((o) => o.stage === stage)
+            : open.filter((o) => o.stage === stage);
           const stageValue = stageRows.reduce((sum, o) => sum + (o.value ?? 0), 0);
 
           return (
             <div key={stage} className="min-w-0">
-              <div className="mb-2 rounded-xl border-t-[3px] border-t-accent bg-surface px-3 py-2.5 shadow-card">
+              <div
+                style={{ borderTopColor: OPPORTUNITY_STAGE_COLOR[stage] }}
+                className="mb-2 rounded-xl border-t-[3px] bg-surface px-3 py-2.5 shadow-card"
+              >
                 <p className="font-display text-[13.5px] font-bold text-ink">
                   {OPPORTUNITY_STAGE_LABEL[stage]}
                 </p>
@@ -156,35 +163,70 @@ export function CrmPipeline({
                       </span>
                     </div>
 
-                    <select
-                      value={o.stage}
-                      onChange={(e) => moveStage(o.id, e.target.value as OpportunityStage)}
-                      aria-label={`Zmień etap szansy ${o.title}`}
-                      className="mt-2.5 w-full rounded-lg border border-border bg-bg px-2 py-1 text-[11.5px] text-ink-soft outline-none focus:border-accent"
-                    >
-                      {OPPORTUNITY_STAGES.map((s) => (
-                        <option key={s} value={s}>
-                          {OPPORTUNITY_STAGE_LABEL[s]}
-                        </option>
-                      ))}
-                    </select>
+                    {!isTerminalStage(stage) && (
+                      <select
+                        value={o.stage}
+                        onChange={(e) => moveStage(o.id, e.target.value as OpportunityStage)}
+                        aria-label={`Zmień etap szansy ${o.title}`}
+                        className="mt-2.5 w-full rounded-lg border border-border bg-bg px-2 py-1 text-[11.5px] text-ink-soft outline-none focus:border-accent"
+                      >
+                        {/* Do etapow koncowych wchodzi sie wylacznie przez rozstrzygniecie
+                            z czynnikami — dlatego nie ma ich na liscie. */}
+                        {OPPORTUNITY_STAGES.filter((x) => !isTerminalStage(x)).map((x) => (
+                          <option key={x} value={x}>
+                            {OPPORTUNITY_STAGE_LABEL[x]}
+                          </option>
+                        ))}
+                      </select>
+                    )}
 
-                    {stage === DECISION_STAGE ? (
+                    {isTerminalStage(stage) ? (
+                      <>
+                        {(o.winFactors.length > 0 || o.lossFactors.length > 0) && (
+                          <div className="mt-2 flex flex-wrap gap-1">
+                            {[...o.winFactors, ...o.lossFactors].map((f) => (
+                              <span
+                                key={f}
+                                className={`rounded-full px-2 py-0.5 text-[10px] font-semibold ${
+                                  stage === "ZAKUP"
+                                    ? "bg-good-soft text-good"
+                                    : "bg-crit-soft text-crit"
+                                }`}
+                              >
+                                {labelOf(
+                                  stage === "ZAKUP"
+                                    ? (WIN_FACTOR_LABEL as Record<string, string>)
+                                    : (LOSS_FACTOR_LABEL as Record<string, string>),
+                                  f,
+                                )}
+                              </span>
+                            ))}
+                          </div>
+                        )}
+                        {canConvert && stage === "ZAKUP" && !o.convertedProjectId && (
+                          <button
+                            onClick={() => setConverting(o)}
+                            className="mt-2 w-full rounded-lg bg-accent-soft px-2 py-1.5 text-[11.5px] font-bold text-accent hover:opacity-80"
+                          >
+                            Konwertuj w projekt →
+                          </button>
+                        )}
+                        {o.convertedProjectId && (
+                          <Link
+                            href={`/projects/${o.convertedProjectId}`}
+                            className="mt-2 block text-center font-mono text-[11px] text-accent hover:underline"
+                          >
+                            → projekt
+                          </Link>
+                        )}
+                      </>
+                    ) : (
                       <button
                         onClick={() => setClosing(o)}
                         className="mt-2 w-full rounded-lg bg-accent-deep px-2 py-1.5 text-[11.5px] font-bold text-white hover:opacity-90"
                       >
-                        Rozstrzygnij: zakup / odmowa
+                        Rozstrzygnij
                       </button>
-                    ) : (
-                      canConvert && (
-                        <button
-                          onClick={() => setConverting(o)}
-                          className="mt-2 w-full rounded-lg bg-accent-soft px-2 py-1.5 text-[11.5px] font-bold text-accent hover:opacity-80"
-                        >
-                          Konwertuj w projekt →
-                        </button>
-                      )
                     )}
                   </div>
                 ))}
@@ -199,83 +241,6 @@ export function CrmPipeline({
           );
         })}
       </div>
-
-      {/* Szanse zamkniete — wygrane z linkiem do projektu, przegrane z powodem */}
-      {rows.some((o) => o.status !== "OPEN") && (
-        <div className="rounded-xl border border-border bg-surface p-4 shadow-card">
-          <p className="font-mono text-[10.5px] uppercase tracking-wider text-muted">
-            Zamknięte szanse
-          </p>
-          <ul className="mt-2 space-y-1">
-            {rows
-              .filter((o) => o.status !== "OPEN")
-              .map((o) => {
-                const factors = o.status === "WON" ? o.winFactors : o.lossFactors;
-                const labels: Record<string, string> =
-                  o.status === "WON" ? WIN_FACTOR_LABEL : LOSS_FACTOR_LABEL;
-                return (
-                  <li key={o.id} className="rounded-xl px-2.5 py-2 hover:bg-surface-2">
-                    <div className="flex items-center gap-3 text-[13px]">
-                      <Pill tone={o.status === "WON" ? "good" : "crit"}>
-                        {o.status === "WON" ? "Zakup" : "Odmowa"}
-                      </Pill>
-                      <span className="min-w-0 flex-1 truncate text-ink">{o.title}</span>
-                      <span className="shrink-0 text-[11.5px] text-muted">{o.clientName}</span>
-                      {o.convertedProjectId && (
-                        <Link
-                          href={`/projects/${o.convertedProjectId}`}
-                          className="shrink-0 font-mono text-[11px] text-accent"
-                        >
-                          projekt →
-                        </Link>
-                      )}
-                      {canConvert && o.status === "WON" && !o.convertedProjectId && (
-                        <button
-                          onClick={() => setConverting(o)}
-                          className="shrink-0 font-mono text-[11px] text-accent hover:underline"
-                        >
-                          → w projekt
-                        </button>
-                      )}
-                    </div>
-                    {factors.length > 0 && (
-                      <div className="mt-1.5 flex flex-wrap gap-1">
-                        {factors.map((f) => (
-                          <span
-                            key={f}
-                            className={`rounded-full px-2 py-0.5 text-[10.5px] font-semibold ${
-                              o.status === "WON"
-                                ? "bg-good-soft text-good"
-                                : "bg-crit-soft text-crit"
-                            }`}
-                          >
-                            {labels[f] ?? f}
-                          </span>
-                        ))}
-                      </div>
-                    )}
-                    {o.decisionNote && (
-                      <p className="mt-1 text-[12px] text-muted">{o.decisionNote}</p>
-                    )}
-                  </li>
-                );
-              })}
-          </ul>
-        </div>
-      )}
-
-      {newOpen && (
-        <NewOpportunityDialog
-          clients={clients}
-          owners={owners}
-          showMoney={showMoney}
-          onClose={() => setNewOpen(false)}
-          onCreated={() => {
-            setNewOpen(false);
-            router.refresh();
-          }}
-        />
-      )}
 
       {closing && (
         <CloseOpportunityDialog
