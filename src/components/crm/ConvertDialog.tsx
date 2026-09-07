@@ -5,6 +5,7 @@ import { Dialog, dialogField, dialogLabel, readError } from "@/components/crm/Di
 import { SERVICE_TYPES, SERVICE_TYPE_LABEL } from "@/lib/domain";
 import { formatMoney } from "@/lib/format";
 import type { OpportunityRow } from "@/components/crm/CrmPipeline";
+import { DateField } from "@/components/ui/DateField";
 
 /**
  * Konwersja szansy w projekt (spec 05). Formularz nie prosi o klienta, kontakty
@@ -102,12 +103,12 @@ export function ConvertDialog({
           <div />
           <label className="block">
             <span className={dialogLabel}>Start</span>
-            <input type="date" name="startDate" className={dialogField} />
+            <DateField  name="startDate" className={dialogField} />
           </label>
           <label className="block">
             <span className={dialogLabel}>Planowany koniec</span>
-            <input
-              type="date"
+            <DateField
+              
               name="endDate"
               defaultValue={opportunity.expectedCloseDate?.slice(0, 10) ?? ""}
               className={dialogField}

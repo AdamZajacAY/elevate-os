@@ -10,6 +10,7 @@ import {
   SERVICE_TYPES,
   SERVICE_TYPE_LABEL,
 } from "@/lib/domain";
+import { DateField } from "@/components/ui/DateField";
 
 type Option = { id: string; name?: string; fullName?: string };
 
@@ -165,12 +166,12 @@ export function NewProjectForm({
 
         <label className="block">
           <span className={labelClass}>Start</span>
-          <input type="date" name="startDate" className={field} />
+          <DateField  name="startDate" className={field} />
         </label>
 
         <label className="block">
           <span className={labelClass}>Planowany koniec</span>
-          <input type="date" name="endDate" className={field} />
+          <DateField  name="endDate" className={field} />
         </label>
       </div>
 

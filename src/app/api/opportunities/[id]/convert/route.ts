@@ -53,14 +53,9 @@ export const POST = withAuth<Ctx>("crm", async (user, req, ctx) => {
         clientId: opportunity.clientId,
         serviceType,
         ownerId: body.ownerId ?? opportunity.ownerId ?? user.id,
-        // Etap pipeline'u przeklada sie na faze projektu — Lead/Oferta i Explore
-        // startuja w Explore, opieka cykliczna wchodzi wprost w Elevate.
-        phase:
-          opportunity.stage === "ELEVATE_OPIEKA"
-            ? "ELEVATE"
-            : opportunity.stage === "ENGINEER_EXECUTE"
-              ? "ENGINEER"
-              : "EXPLORE",
+        // Etapy pipeline'u opisuja proces sprzedazy, nie faze realizacji —
+        // kazdy nowy projekt startuje w Explore, chyba ze wolajacy wskaze inaczej.
+        phase: "EXPLORE",
         status: "ACTIVE",
         description: opportunity.notes,
         startDate: body.startDate ? new Date(body.startDate) : new Date(),

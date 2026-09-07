@@ -11,6 +11,8 @@ import {
   CLIENT_SEGMENTS,
   OPPORTUNITY_STAGES,
   IMPROVEMENT_STATUSES,
+  WIN_FACTORS,
+  LOSS_FACTORS,
 } from "@/lib/domain";
 
 /**
@@ -239,7 +241,7 @@ const opportunityFields = {
 
 export const opportunityCreateSchema = z.object({
   ...opportunityFields,
-  stage: opportunityFields.stage.default("LEAD_OFERTA"),
+  stage: opportunityFields.stage.default("KONSULTACJE"),
   probability: opportunityFields.probability.default(30),
 });
 
@@ -252,6 +254,27 @@ export const opportunityUpdateSchema = nonEmptyPatch(
     })
     .partial(),
 );
+
+/**
+ * Zamkniecie szansy — wygrana albo przegrana wraz z czynnikami decyzji.
+ * Osobny schemat, bo to inna operacja niz zwykla edycja: wymaga podania
+ * co najmniej jednego czynnika, zeby dane nadawaly sie do analizy.
+ */
+export const opportunityCloseSchema = z
+  .object({
+    status: z.enum(["WON", "LOST"]),
+    winFactors: z.array(z.enum(WIN_FACTORS)).max(WIN_FACTORS.length).default([]),
+    lossFactors: z.array(z.enum(LOSS_FACTORS)).max(LOSS_FACTORS.length).default([]),
+    decisionNote: optionalText,
+  })
+  .refine(
+    (v) =>
+      v.status === "WON" ? v.winFactors.length > 0 : v.lossFactors.length > 0,
+    {
+      message: "Wskaz co najmniej jeden czynnik decyzji",
+      path: ["winFactors"],
+    },
+  );
 
 // ═══════════════════════════════════════════════════════════════════════════
 //  RYZYKA, KAMIENIE MILOWE

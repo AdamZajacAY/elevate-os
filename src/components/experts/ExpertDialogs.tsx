@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { Dialog, dialogField, dialogLabel, readError } from "@/components/crm/Dialog";
 import type { ExpertRow } from "@/components/experts/ExpertsClient";
+import { DateField } from "@/components/ui/DateField";
 
 const AVAILABILITY = [
   ["DOSTEPNY", "Dostępny"],
@@ -216,11 +217,11 @@ export function AssignExpertDialog({
             <div />
             <label className="block">
               <span className={dialogLabel}>Start</span>
-              <input type="date" name="startDate" className={dialogField} />
+              <DateField  name="startDate" className={dialogField} />
             </label>
             <label className="block">
               <span className={dialogLabel}>Koniec</span>
-              <input type="date" name="endDate" className={dialogField} />
+              <DateField  name="endDate" className={dialogField} />
             </label>
           </div>
 

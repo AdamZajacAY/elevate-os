@@ -131,3 +131,38 @@ body {
   background: var(--border);
   border-radius: 6px;
 }
+
+/* ── Pola daty ──────────────────────────────────────────────────────────────
+   Ikona kalendarza w `input[type="date"]` to grafika przeglądarki w stałym,
+   ciemnym kolorze — na ciemnym tle znika. Odwracamy ją tam, gdzie tło jest
+   ciemne, i powiększamy pole trafienia, bo domyślnie ma kilka pikseli. */
+input[type="date"]::-webkit-calendar-picker-indicator {
+  cursor: pointer;
+  opacity: 0.65;
+  padding: 4px;
+  margin-right: -4px;
+  border-radius: 4px;
+  transition: opacity 0.15s;
+}
+
+input[type="date"]::-webkit-calendar-picker-indicator:hover {
+  opacity: 1;
+  background: var(--surface-2);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) input[type="date"]::-webkit-calendar-picker-indicator {
+    filter: invert(1);
+  }
+}
+
+:root[data-theme="dark"] input[type="date"]::-webkit-calendar-picker-indicator {
+  filter: invert(1);
+}
+
+/* Pusta data pokazuje "dd.mm.rrrr" pełnym kontrastem, przez co wygląda
+   na wypełnioną — przygaszamy ją do poziomu podpowiedzi. */
+input[type="date"]:not(:focus):invalid,
+input[type="date"]:not(:focus)[value=""] {
+  color: var(--muted);
+}

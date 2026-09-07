@@ -8,6 +8,7 @@ import {
   SERVICE_TYPES,
   SERVICE_TYPE_LABEL,
 } from "@/lib/domain";
+import { DateField } from "@/components/ui/DateField";
 
 export function NewOpportunityDialog({
   clients,
@@ -125,7 +126,7 @@ export function NewOpportunityDialog({
 
           <label className="block">
             <span className={dialogLabel}>Spodziewane zamknięcie</span>
-            <input type="date" name="expectedCloseDate" className={dialogField} />
+            <DateField  name="expectedCloseDate" className={dialogField} />
           </label>
 
           <label className="block">

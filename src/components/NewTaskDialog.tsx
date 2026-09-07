@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { PRIORITIES, PRIORITY_LABEL, TASK_STATUSES, TASK_STATUS_LABEL } from "@/lib/domain";
+import { DateField } from "@/components/ui/DateField";
 
 const field =
   "mt-1.5 w-full rounded-lg border border-border bg-bg px-3 py-2 text-[14px] text-ink outline-none focus:border-accent";
@@ -126,7 +127,7 @@ export function NewTaskDialog({
 
             <label className="block">
               <span className={labelClass}>Termin</span>
-              <input type="date" name="dueDate" className={field} />
+              <DateField  name="dueDate" className={field} />
             </label>
 
             <label className="block">

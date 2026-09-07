@@ -8,6 +8,7 @@ import { EmptyState } from "@/components/ui/EmptyState";
 import { Dialog, dialogField, dialogLabel, readError } from "@/components/crm/Dialog";
 import { RAG_STATUSES } from "@/lib/domain";
 import { formatDate } from "@/lib/format";
+import { DateField } from "@/components/ui/DateField";
 
 type Report = {
   id: string;
@@ -151,8 +152,8 @@ function NewReportDialog({
         <div className="grid gap-4 sm:grid-cols-2">
           <label className="block">
             <span className={dialogLabel}>Data raportu</span>
-            <input
-              type="date"
+            <DateField
+              
               name="reportDate"
               required
               defaultValue={new Date().toISOString().slice(0, 10)}

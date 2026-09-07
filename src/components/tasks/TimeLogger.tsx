@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Card, CardHeader } from "@/components/ui/Card";
 import { readError } from "@/components/crm/Dialog";
+import { DateField } from "@/components/ui/DateField";
 
 /** Rejestracja godziny — jedyne zrodlo kosztu rzeczywistego na dashboardzie (spec 02). */
 export function TimeLogger({ taskId, projectId }: { taskId: string; projectId: string }) {
@@ -61,8 +62,8 @@ export function TimeLogger({ taskId, projectId }: { taskId: string; projectId: s
           </label>
           <label className="block">
             <span className={label}>Data</span>
-            <input
-              type="date"
+            <DateField
+              
               name="workDate"
               required
               defaultValue={new Date().toISOString().slice(0, 10)}

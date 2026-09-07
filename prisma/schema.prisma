@@ -211,6 +211,16 @@ model Opportunity {
   expectedCloseDate DateTime?
   ownerId     String?
   owner       User?    @relation("OpportunityOwner", fields: [ownerId], references: [id], onDelete: SetNull)
+
+  /// Czynniki decyzji klienta — kody ze slownikow WIN_FACTORS / LOSS_FACTORS
+  /// w src/lib/domain.ts. Zbierane przy zamknieciu szansy, zeby dalo sie
+  /// odpowiedziec liczbami na pytanie, co domyka oferty, a co je przewraca.
+  winFactors  String[] @default([])
+  lossFactors String[] @default([])
+  /// Komentarz do decyzji — uzupelnia czynniki, nie zastepuje ich.
+  decisionNote String?
+  closedAt    DateTime?
+
   lostReason  String?
   /// Projekt powstaly z konwersji tej szansy (spec 05)
   convertedProjectId String? @unique

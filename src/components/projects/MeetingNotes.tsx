@@ -9,6 +9,7 @@ import { EmptyState } from "@/components/ui/EmptyState";
 import { Dialog, dialogField, dialogLabel, readError } from "@/components/crm/Dialog";
 import { PRIORITIES, PRIORITY_LABEL } from "@/lib/domain";
 import { formatDate } from "@/lib/format";
+import { DateField } from "@/components/ui/DateField";
 
 export type NoteItem = {
   id: string;
@@ -211,8 +212,8 @@ function NewNoteDialog({
           </label>
           <label className="block">
             <span className={dialogLabel}>Data spotkania</span>
-            <input
-              type="date"
+            <DateField
+              
               name="meetingDate"
               required
               defaultValue={new Date().toISOString().slice(0, 10)}
@@ -361,7 +362,7 @@ function ConvertItemDialog({
           </label>
           <label className="block">
             <span className={dialogLabel}>Termin</span>
-            <input type="date" name="dueDate" className={dialogField} />
+            <DateField  name="dueDate" className={dialogField} />
           </label>
         </div>
 

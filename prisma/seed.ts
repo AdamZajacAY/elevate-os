@@ -550,9 +550,13 @@ async function main() {
 
   console.log("→ Pipeline sprzedażowy");
   const opportunitySpecs = [
-    { clientId: clients[3].id, title: "Audyt kanału B2B Formatec", stage: "LEAD_OFERTA", serviceType: "AUDYT_ECOMMERCE", value: 68000, probability: 40, ownerId: partnerId, expectedCloseDate: at(28) },
-    { clientId: clients[1].id, title: "Ekspansja VitaPharm na rynek DACH", stage: "ENGINEER_EXECUTE", serviceType: "EKSPANSJA_CROSS_BORDER", value: 180000, probability: 55, ownerId: partnerId, expectedCloseDate: at(60) },
-    { clientId: clients[2].id, title: "Stała opieka Trailmark po wdrożeniu", stage: "ELEVATE_OPIEKA", serviceType: "INTERIM_MANAGEMENT", value: 72000, probability: 70, ownerId: partnerId, expectedCloseDate: at(20) },
+    { clientId: clients[3].id, title: "Audyt kanału B2B Formatec", stage: "KONSULTACJE", serviceType: "AUDYT_ECOMMERCE", value: 68000, probability: 40, ownerId: partnerId, expectedCloseDate: at(28) },
+    { clientId: clients[1].id, title: "Ekspansja VitaPharm na rynek DACH", stage: "OFERTA_W_PRZYGOTOWANIU", serviceType: "EKSPANSJA_CROSS_BORDER", value: 180000, probability: 55, ownerId: partnerId, expectedCloseDate: at(60) },
+    { clientId: clients[2].id, title: "Stała opieka Trailmark po wdrożeniu", stage: "WERYFIKACJA_OFERTY", serviceType: "INTERIM_MANAGEMENT", value: 72000, probability: 70, ownerId: partnerId, expectedCloseDate: at(20) },
+    { clientId: clients[0].id, title: "Optymalizacja PIM NordicHome", stage: "OFERTA_WYSLANA", serviceType: "WDROZENIE_NARZEDZIA", value: 44000, probability: 50, ownerId: partnerId, expectedCloseDate: at(15) },
+    // Zamkniete — pokazuja, jak wygladaja zebrane czynniki decyzji.
+    { clientId: clients[1].id, title: "Szkolenie zespołu VitaPharm", stage: "ZAKUP_LUB_ODMOWA", status: "WON", serviceType: "SZKOLENIE_ZESPOLU", value: 28000, probability: 100, ownerId: partnerId, expectedCloseDate: at(-12), closedAt: at(-12), winFactors: ["REKOMENDACJA", "DOSWIADCZENIE_BRANZOWE", "TERMIN_REALIZACJI"], decisionNote: "Zdecydowało polecenie od zarządu NordicHome i gotowość na termin przed sezonem." },
+    { clientId: clients[3].id, title: "Interim management Formatec", stage: "ZAKUP_LUB_ODMOWA", status: "LOST", serviceType: "INTERIM_MANAGEMENT", value: 210000, probability: 0, ownerId: partnerId, expectedCloseDate: at(-20), closedAt: at(-20), lossFactors: ["CENA_ZA_WYSOKA", "REALIZACJA_WEWNETRZNA"], decisionNote: "Klient zdecydował się obsadzić rolę wewnętrznie. Warto wrócić za dwa kwartały." },
   ];
   for (const opportunity of opportunitySpecs) {
     const exists = await prisma.opportunity.findFirst({

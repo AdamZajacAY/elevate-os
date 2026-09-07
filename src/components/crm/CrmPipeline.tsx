@@ -7,13 +7,18 @@ import { Pill } from "@/components/ui/Pill";
 import {
   OPPORTUNITY_STAGES,
   OPPORTUNITY_STAGE_LABEL,
+  OPPORTUNITY_STAGE_HINT,
   SERVICE_TYPE_LABEL,
+  DECISION_STAGE,
+  WIN_FACTOR_LABEL,
+  LOSS_FACTOR_LABEL,
   type OpportunityStage,
   labelOf,
 } from "@/lib/domain";
 import { formatMoney, formatDate } from "@/lib/format";
 import { NewOpportunityDialog } from "@/components/crm/NewOpportunityDialog";
 import { ConvertDialog } from "@/components/crm/ConvertDialog";
+import { CloseOpportunityDialog } from "@/components/crm/CloseOpportunityDialog";
 
 export type OpportunityRow = {
   id: string;
@@ -25,17 +30,12 @@ export type OpportunityRow = {
   probability: number;
   expectedCloseDate: string | null;
   convertedProjectId: string | null;
+  winFactors: string[];
+  lossFactors: string[];
+  decisionNote: string | null;
   clientId: string;
   clientName: string;
   ownerName: string | null;
-};
-
-/** Opis kroku pipeline'u — pipeline stoi na metodzie Elevate, nie na lead/opportunity/won. */
-const STAGE_HINT: Record<OpportunityStage, string> = {
-  LEAD_OFERTA: "Pierwszy kontakt i propozycja współpracy",
-  EXPLORE: "Podpisany audyt lub diagnoza",
-  ENGINEER_EXECUTE: "Strategia i wdrożenie",
-  ELEVATE_OPIEKA: "Monitoring, iteracje, odnowienie",
 };
 
 export function CrmPipeline({
@@ -59,6 +59,7 @@ export function CrmPipeline({
   useEffect(() => setRows(opportunities), [opportunities]);
   const [newOpen, setNewOpen] = useState(false);
   const [converting, setConverting] = useState<OpportunityRow | null>(null);
+  const [closing, setClosing] = useState<OpportunityRow | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   /** Przesuniecie szansy na kolejny etap — optymistycznie, z cofnieciem przy odmowie. */
@@ -116,7 +117,7 @@ export function CrmPipeline({
                 <p className="font-display text-[13.5px] font-bold text-ink">
                   {OPPORTUNITY_STAGE_LABEL[stage]}
                 </p>
-                <p className="mt-0.5 text-[11px] text-muted">{STAGE_HINT[stage]}</p>
+                <p className="mt-0.5 text-[11px] text-muted">{OPPORTUNITY_STAGE_HINT[stage]}</p>
                 <p className="mt-1.5 flex items-center justify-between font-mono text-[11px]">
                   <span className="text-muted">{stageRows.length} szans</span>
                   {showMoney && stageValue > 0 && (
@@ -168,13 +169,22 @@ export function CrmPipeline({
                       ))}
                     </select>
 
-                    {canConvert && (
+                    {stage === DECISION_STAGE ? (
                       <button
-                        onClick={() => setConverting(o)}
-                        className="mt-2 w-full rounded-lg bg-accent-soft px-2 py-1.5 text-[11.5px] font-bold text-accent hover:opacity-80"
+                        onClick={() => setClosing(o)}
+                        className="mt-2 w-full rounded-lg bg-accent-deep px-2 py-1.5 text-[11.5px] font-bold text-white hover:opacity-90"
                       >
-                        Konwertuj w projekt →
+                        Rozstrzygnij: zakup / odmowa
                       </button>
+                    ) : (
+                      canConvert && (
+                        <button
+                          onClick={() => setConverting(o)}
+                          className="mt-2 w-full rounded-lg bg-accent-soft px-2 py-1.5 text-[11.5px] font-bold text-accent hover:opacity-80"
+                        >
+                          Konwertuj w projekt →
+                        </button>
+                      )
                     )}
                   </div>
                 ))}
@@ -199,23 +209,57 @@ export function CrmPipeline({
           <ul className="mt-2 space-y-1">
             {rows
               .filter((o) => o.status !== "OPEN")
-              .map((o) => (
-                <li key={o.id} className="flex items-center gap-3 text-[13px]">
-                  <Pill tone={o.status === "WON" ? "good" : "crit"}>
-                    {o.status === "WON" ? "Wygrana" : "Przegrana"}
-                  </Pill>
-                  <span className="min-w-0 flex-1 truncate text-ink">{o.title}</span>
-                  <span className="shrink-0 text-[11.5px] text-muted">{o.clientName}</span>
-                  {o.convertedProjectId && (
-                    <Link
-                      href={`/projects/${o.convertedProjectId}`}
-                      className="shrink-0 font-mono text-[11px] text-accent"
-                    >
-                      projekt →
-                    </Link>
-                  )}
-                </li>
-              ))}
+              .map((o) => {
+                const factors = o.status === "WON" ? o.winFactors : o.lossFactors;
+                const labels: Record<string, string> =
+                  o.status === "WON" ? WIN_FACTOR_LABEL : LOSS_FACTOR_LABEL;
+                return (
+                  <li key={o.id} className="rounded-xl px-2.5 py-2 hover:bg-surface-2">
+                    <div className="flex items-center gap-3 text-[13px]">
+                      <Pill tone={o.status === "WON" ? "good" : "crit"}>
+                        {o.status === "WON" ? "Zakup" : "Odmowa"}
+                      </Pill>
+                      <span className="min-w-0 flex-1 truncate text-ink">{o.title}</span>
+                      <span className="shrink-0 text-[11.5px] text-muted">{o.clientName}</span>
+                      {o.convertedProjectId && (
+                        <Link
+                          href={`/projects/${o.convertedProjectId}`}
+                          className="shrink-0 font-mono text-[11px] text-accent"
+                        >
+                          projekt →
+                        </Link>
+                      )}
+                      {canConvert && o.status === "WON" && !o.convertedProjectId && (
+                        <button
+                          onClick={() => setConverting(o)}
+                          className="shrink-0 font-mono text-[11px] text-accent hover:underline"
+                        >
+                          → w projekt
+                        </button>
+                      )}
+                    </div>
+                    {factors.length > 0 && (
+                      <div className="mt-1.5 flex flex-wrap gap-1">
+                        {factors.map((f) => (
+                          <span
+                            key={f}
+                            className={`rounded-full px-2 py-0.5 text-[10.5px] font-semibold ${
+                              o.status === "WON"
+                                ? "bg-good-soft text-good"
+                                : "bg-crit-soft text-crit"
+                            }`}
+                          >
+                            {labels[f] ?? f}
+                          </span>
+                        ))}
+                      </div>
+                    )}
+                    {o.decisionNote && (
+                      <p className="mt-1 text-[12px] text-muted">{o.decisionNote}</p>
+                    )}
+                  </li>
+                );
+              })}
           </ul>
         </div>
       )}
@@ -228,6 +272,18 @@ export function CrmPipeline({
           onClose={() => setNewOpen(false)}
           onCreated={() => {
             setNewOpen(false);
+            router.refresh();
+          }}
+        />
+      )}
+
+      {closing && (
+        <CloseOpportunityDialog
+          opportunity={closing}
+          showMoney={showMoney}
+          onClose={() => setClosing(null)}
+          onClosed={() => {
+            setClosing(null);
             router.refresh();
           }}
         />

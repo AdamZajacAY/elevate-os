@@ -113,20 +113,94 @@ export const CLIENT_SEGMENT_LABEL: Record<ClientSegment, string> = {
   JEDNORAZOWY: "Jednorazowy",
 };
 
-/// Pipeline sprzedazowy zbudowany na metodzie Elevate, nie na generycznych etapach (spec 05)
+/**
+ * Pipeline sprzedazowy AdviseYou. Etapy odzwierciedlaja realny proces:
+ * od rozmowy diagnostycznej, przez przygotowanie i wyslanie oferty, po decyzje klienta.
+ * Ostatni etap jest rozstrzygajacy — szansa konczy sie tam wygrana albo przegrana.
+ */
 export const OPPORTUNITY_STAGES = [
-  "LEAD_OFERTA",
-  "EXPLORE",
-  "ENGINEER_EXECUTE",
-  "ELEVATE_OPIEKA",
+  "KONSULTACJE",
+  "OFERTA_W_PRZYGOTOWANIU",
+  "OFERTA_WYSLANA",
+  "WERYFIKACJA_OFERTY",
+  "ZAKUP_LUB_ODMOWA",
 ] as const;
 export type OpportunityStage = (typeof OPPORTUNITY_STAGES)[number];
 
 export const OPPORTUNITY_STAGE_LABEL: Record<OpportunityStage, string> = {
-  LEAD_OFERTA: "Lead → Oferta",
-  EXPLORE: "Etap I: Explore",
-  ENGINEER_EXECUTE: "Etap II: Engineer / Execute",
-  ELEVATE_OPIEKA: "Elevate: stała opieka",
+  KONSULTACJE: "Konsultacje biznesowe",
+  OFERTA_W_PRZYGOTOWANIU: "Oferta w przygotowaniu",
+  OFERTA_WYSLANA: "Wysłana oferta",
+  WERYFIKACJA_OFERTY: "Weryfikacja oferty",
+  ZAKUP_LUB_ODMOWA: "Zakup lub odmowa",
+};
+
+export const OPPORTUNITY_STAGE_HINT: Record<OpportunityStage, string> = {
+  KONSULTACJE: "Rozmowa diagnostyczna, rozpoznanie potrzeby",
+  OFERTA_W_PRZYGOTOWANIU: "Zakres i wycena po naszej stronie",
+  OFERTA_WYSLANA: "Oferta u klienta, czekamy na reakcję",
+  WERYFIKACJA_OFERTY: "Klient analizuje, negocjacje i pytania",
+  ZAKUP_LUB_ODMOWA: "Etap rozstrzygający — decyzja klienta",
+};
+
+/** Etap, na ktorym zapada decyzja — tam wymagamy zamkniecia szansy z czynnikami. */
+export const DECISION_STAGE: OpportunityStage = "ZAKUP_LUB_ODMOWA";
+
+// ── Czynniki decyzji (spec 05 — nauka z wygranych i przegranych) ─────────────
+
+/**
+ * Dlaczego klient kupil. Zbierane przy wygranej, zeby dalo sie odpowiedziec
+ * na pytanie "co domyka nasze oferty" liczbami, a nie wrazeniem.
+ */
+export const WIN_FACTORS = [
+  "REKOMENDACJA",
+  "DOPASOWANIE_ZAKRESU",
+  "CENA",
+  "TERMIN_REALIZACJI",
+  "DOSWIADCZENIE_BRANZOWE",
+  "RELACJA_Z_KONSULTANTEM",
+  "REFERENCJE",
+  "KOMPLEKSOWOSC",
+  "SZYBKOSC_REAKCJI",
+] as const;
+export type WinFactor = (typeof WIN_FACTORS)[number];
+
+export const WIN_FACTOR_LABEL: Record<WinFactor, string> = {
+  REKOMENDACJA: "Rekomendacja / polecenie",
+  DOPASOWANIE_ZAKRESU: "Dopasowanie zakresu do potrzeby",
+  CENA: "Cena",
+  TERMIN_REALIZACJI: "Termin realizacji",
+  DOSWIADCZENIE_BRANZOWE: "Doświadczenie w branży klienta",
+  RELACJA_Z_KONSULTANTEM: "Relacja z konsultantem",
+  REFERENCJE: "Referencje i case studies",
+  KOMPLEKSOWOSC: "Kompleksowość oferty",
+  SZYBKOSC_REAKCJI: "Szybkość reakcji",
+};
+
+/** Dlaczego klient nie kupil. */
+export const LOSS_FACTORS = [
+  "CENA_ZA_WYSOKA",
+  "BRAK_BUDZETU",
+  "WYBRANO_KONKURENCJE",
+  "REALIZACJA_WEWNETRZNA",
+  "ODLOZONE_W_CZASIE",
+  "ZMIANA_PRIORYTETOW",
+  "BRAK_DECYZYJNOSCI",
+  "ZAKRES_NIEADEKWATNY",
+  "BRAK_KONTAKTU",
+] as const;
+export type LossFactor = (typeof LOSS_FACTORS)[number];
+
+export const LOSS_FACTOR_LABEL: Record<LossFactor, string> = {
+  CENA_ZA_WYSOKA: "Cena za wysoka",
+  BRAK_BUDZETU: "Brak budżetu",
+  WYBRANO_KONKURENCJE: "Wybrano konkurencję",
+  REALIZACJA_WEWNETRZNA: "Realizacja własnymi siłami",
+  ODLOZONE_W_CZASIE: "Odłożone w czasie",
+  ZMIANA_PRIORYTETOW: "Zmiana priorytetów u klienta",
+  BRAK_DECYZYJNOSCI: "Brak decyzji / rozmówca bez mandatu",
+  ZAKRES_NIEADEKWATNY: "Zakres nieadekwatny do potrzeby",
+  BRAK_KONTAKTU: "Klient przestał odpowiadać",
 };
 
 // ── Ryzyka ───────────────────────────────────────────────────────────────────
