@@ -1,0 +1,93 @@
+# Blueprint Render — jedna usługa web + jedna baza Postgres.
+# Wdrożenie: Render → New → Blueprint → wskaż repozytorium z tym plikiem.
+#
+# Sekrety oznaczone `sync: false` NIE trafiają do repozytorium — uzupełniasz je
+# w panelu Render (Environment). To celowe: klucze Google i sekret sesji nie mogą
+# leżeć w gicie.
+
+databases:
+  - name: elevate-os-db
+    databaseName: elevate_os
+    user: elevate
+    # Zmień na "starter" albo wyżej, żeby mieć automatyczne kopie zapasowe.
+    # Plan "free" kasuje bazę po 30 dniach bezczynności i nie robi kopii.
+    plan: free
+    postgresMajorVersion: "16"
+
+services:
+  - type: web
+    name: elevate-os
+    runtime: node
+    plan: free
+    region: frankfurt
+    branch: main
+
+    # `build` generuje klienta Prismy i buduje Next.
+    buildCommand: npm ci && npm run build
+    # `start` najpierw dokłada migracje do bazy, potem podnosi serwer.
+    startCommand: npm run start
+
+    healthCheckPath: /login
+
+    envVars:
+      - key: DATABASE_URL
+        fromDatabase:
+          name: elevate-os-db
+          property: connectionString
+
+      - key: NODE_VERSION
+        value: "22.20.0"
+
+      - key: NODE_ENV
+        value: production
+
+      # Sekret sesji — Render wygeneruje losowy przy pierwszym wdrożeniu.
+      # UWAGA: tym samym sekretem szyfrowane są tokeny Google (HKDF).
+      # Jego zmiana unieważni połączenia z Kalendarzem — trzeba je nawiązać ponownie.
+      - key: AUTH_SECRET
+        generateValue: true
+
+      # Adres publiczny usługi — Render podstawia go sam.
+      - key: AUTH_URL
+        fromService:
+          type: web
+          name: elevate-os
+          envVarKey: RENDER_EXTERNAL_URL
+
+      - key: AUTH_TRUST_HOST
+        value: "true"
+
+      # Render stoi za odwrotnym proxy, więc X-Forwarded-For jest wiarygodny.
+      # Bez tego limit prób logowania widzi wszystkich pod adresem "unknown".
+      - key: TRUST_PROXY
+        value: "true"
+
+      # Sekret dla harmonogramu (skan powiadomień, sprzątanie retencyjne).
+      - key: CRON_SECRET
+        generateValue: true
+
+      # ── Uzupełnij w panelu Render ──────────────────────────────────────────
+      - key: GOOGLE_WORKSPACE_DOMAIN
+        sync: false
+      - key: AUTH_GOOGLE_ID
+        sync: false
+      - key: AUTH_GOOGLE_SECRET
+        sync: false
+      # Opcjonalne — poczta transakcyjna
+      - key: RESEND_API_KEY
+        sync: false
+      - key: EMAIL_FROM
+        sync: false
+
+# Harmonogram: skan powiadomień i sprzątanie retencyjne.
+# Wymaga planu płatnego (cron jobs nie są dostępne na "free").
+# Do czasu przejścia na płatny plan Administrator uruchamia oba z panelu.
+#
+#  - type: cron
+#    name: elevate-os-skan
+#    runtime: node
+#    schedule: "0 6 * * 1-5"
+#    buildCommand: npm ci
+#    startCommand: >
+#      curl -fsS -X POST "$APP_URL/api/cron/scan"
+#      -H "Authorization: Bearer $CRON_SECRET"

@@ -1,0 +1,650 @@
+// ELEVATE OS — model danych (spec sekcja 08)
+// Nazwy modeli po angielsku (idiom Prisma), nazwy tabel po polsku (@@map) zgodnie ze specyfikacja.
+// Wartosci slownikowe trzymane jako String, nie jako enumy Prismy —
+// typy unii i listy wartosci sa w src/lib/domain.ts (jedno zrodlo prawdy).
+
+generator client {
+  provider = "prisma-client"
+  output   = "../generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+//  KONTA I ZESPOL
+// ═══════════════════════════════════════════════════════════════════════════
+
+/// Konto uzytkownika + profil czlonka zespolu (rola, FTE, stawka godzinowa).
+model User {
+  id           String    @id @default(cuid())
+  email        String    @unique
+  fullName     String
+  passwordHash String?
+  /// ADMIN | PARTNER | CONSULTANT — patrz src/lib/domain.ts
+  role         String    @default("CONSULTANT")
+  isActive     Boolean   @default(true)
+
+  // ── profil zespolowy (encja "zespol" ze spec) ──
+  position     String?
+  /// Etat: 1.0 = pelny wymiar
+  fte          Float     @default(1.0)
+  /// Wewnetrzna stawka kosztowa PLN/h — pole finansowe, redagowane wg roli
+  hourlyRate   Float?
+
+  // ── personalizacja (Panel Usprawnien, spec 06) ──
+  /// light | dark | system
+  theme        String    @default("system")
+  /// sciezka widoku startowego po zalogowaniu
+  defaultView  String    @default("/dashboard")
+  /// prog dni, po ktorym powiadomienie o terminie staje sie pilne
+  urgentDays   Int       @default(3)
+
+  /// Sekret subskrypcji kalendarza — aplikacja kalendarza nie ma ciasteczka sesji,
+  /// wiec feed autoryzuje sie tokenem w adresie. Odwolywalny przez wygenerowanie nowego.
+  calendarToken String?  @unique
+
+  /// Znacznik anonimizacji (RODO art. 17). Konto z historia pracy nie jest kasowane —
+  /// dane osobowe sa zastepowane, a wpisy czasu i autorstwo zostaja dla rozliczen.
+  anonymizedAt DateTime?
+
+  lastLoginAt  DateTime?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  ownedProjects   Project[]           @relation("ProjectOwner")
+  tasks           Task[]              @relation("TaskAssignee")
+  timeLogs        TimeLog[]
+  riskOwnerships  Risk[]              @relation("RiskOwner")
+  comments        Comment[]
+  notifications   Notification[]
+  meetingNotes    MeetingNote[]
+  statusReports   StatusReport[]
+  improvements    Improvement[]
+  auditLogs       AuditLog[]
+  expertProfile   ExternalExpert?
+  googleCalendar  GoogleCalendarLink?
+  opportunities   Opportunity[]       @relation("OpportunityOwner")
+
+  @@index([role, isActive])
+  @@map("uzytkownicy")
+}
+
+/// Polaczenie konta z Google Calendar (spec 09).
+///
+/// Tokeny sa sekretami — nie moga byc nigdy zwrocone do przegladarki. Zadna trasa
+/// API nie selektuje pol `accessToken`/`refreshToken`; do interfejsu ida wylacznie
+/// metadane polaczenia (kiedy, ile wydarzen, jaki kalendarz).
+model GoogleCalendarLink {
+  id           String   @id @default(cuid())
+  userId       String   @unique
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  /// Konto Google, ktore wyrazilo zgode — pokazywane uzytkownikowi, zeby wiedzial,
+  /// z ktora skrzynka spial narzedzie.
+  googleEmail  String
+
+  accessToken  String
+  /// Google oddaje refresh token tylko przy pierwszej zgodzie (access_type=offline
+  /// + prompt=consent). Bez niego polaczenie wygasa po godzinie i trzeba je odnowic.
+  refreshToken String
+  expiresAt    DateTime
+  scope        String
+
+  /// Osobny kalendarz "ELEVATE OS" zakladany w koncie uzytkownika — nie mieszamy
+  /// wydarzen projektowych z jego kalendarzem glownym.
+  calendarId   String?
+
+  lastSyncAt    DateTime?
+  lastSyncCount Int      @default(0)
+  lastSyncError String?
+
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@map("integracje_google_kalendarz")
+}
+
+/// Blokada logowania — limit prob w oknie czasowym per para (IP, e-mail). Spec 10.
+model LoginAttempt {
+  id        String   @id @default(cuid())
+  email     String
+  ip        String
+  success   Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  @@index([email, ip, createdAt])
+  @@map("proby_logowania")
+}
+
+/// Slad audytowy operacji zapisu.
+model AuditLog {
+  id        String   @id @default(cuid())
+  userId    String?
+  user      User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+  action    String
+  entity    String
+  entityId  String?
+  /// JSON ze zmianami
+  meta      String?
+  createdAt DateTime @default(now())
+
+  @@index([entity, entityId])
+  @@index([createdAt])
+  @@map("dziennik_audytu")
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+//  CRM
+// ═══════════════════════════════════════════════════════════════════════════
+
+model Client {
+  id          String   @id @default(cuid())
+  name        String
+  industry    String?
+  /// STRATEGICZNY | KLUCZOWY | STANDARDOWY | JEDNORAZOWY
+  segment     String   @default("STANDARDOWY")
+  /// PROSPEKT | AKTYWNY | STALY | NIEAKTYWNY | UTRACONY
+  status      String   @default("PROSPEKT")
+  nip         String?
+  krs         String?
+  regon       String?
+  address     String?
+  city        String?
+  website     String?
+  notes       String?
+  /// Data ostatniego kontaktu — zasila przypomnienie o milczeniu (spec 05)
+  lastContactAt DateTime?
+
+  /// Do kiedy wolno przetwarzac dane tego klienta (RODO art. 5 ust. 1 lit. e).
+  /// Wyliczane przy zamknieciu ostatniego projektu; null = okres jeszcze nie ruszyl.
+  retentionUntil DateTime?
+  anonymizedAt   DateTime?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  contacts      ClientContact[]
+  opportunities Opportunity[]
+  projects      Project[]
+  meetingNotes  MeetingNote[]
+
+  @@index([status])
+  @@map("klienci")
+}
+
+model ClientContact {
+  id        String   @id @default(cuid())
+  clientId  String
+  client    Client   @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  fullName  String
+  position  String?
+  email     String?
+  phone     String?
+  /// DECYDENT | WPLYWOWY | OPERACYJNY | KONTAKT_TECHNICZNY
+  decisionLevel String @default("OPERACYJNY")
+  isPrimary Boolean  @default(false)
+  notes     String?
+  anonymizedAt DateTime?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([clientId])
+  @@map("kontakty_klienta")
+}
+
+/// Szansa sprzedazowa — pipeline uporzadkowany wg metody Elevate (spec 05).
+model Opportunity {
+  id          String   @id @default(cuid())
+  clientId    String
+  client      Client   @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  title       String
+  /// LEAD_OFERTA | EXPLORE | ENGINEER_EXECUTE | ELEVATE_OPIEKA
+  stage       String   @default("LEAD_OFERTA")
+  /// OPEN | WON | LOST
+  status      String   @default("OPEN")
+  /// Typ uslugi — slownik konfiguracyjny
+  serviceType String?
+  /// Pole finansowe — redagowane wg roli
+  value       Float?
+  probability Int      @default(30)
+  expectedCloseDate DateTime?
+  ownerId     String?
+  owner       User?    @relation("OpportunityOwner", fields: [ownerId], references: [id], onDelete: SetNull)
+  lostReason  String?
+  /// Projekt powstaly z konwersji tej szansy (spec 05)
+  convertedProjectId String? @unique
+  notes       String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([stage, status])
+  @@index([clientId])
+  @@map("pipeline_szans")
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+//  PRACA PROJEKTOWA
+// ═══════════════════════════════════════════════════════════════════════════
+
+model Project {
+  id          String   @id @default(cuid())
+  code        String   @unique
+  name        String
+  clientId    String
+  client      Client   @relation(fields: [clientId], references: [id], onDelete: Restrict)
+  /// Typ uslugi — slownik konfiguracyjny (etykiety_konfiguracji)
+  serviceType String
+  ownerId     String?
+  owner       User?    @relation("ProjectOwner", fields: [ownerId], references: [id], onDelete: SetNull)
+  /// EXPLORE | ENGINEER | EXECUTE | ELEVATE
+  phase       String   @default("EXPLORE")
+  /// GREEN | AMBER | RED — liczony automatycznie z terminowosci i ryzyk (spec 03)
+  ragStatus   String   @default("GREEN")
+  /// PLANNED | ACTIVE | ON_HOLD | CLOSED
+  status      String   @default("ACTIVE")
+  description String?
+  startDate   DateTime?
+  endDate     DateTime?
+  closedAt    DateTime?
+
+  // ── pola finansowe — redagowane (null) dla rol bez uprawnienia (spec 04/06) ──
+  budget        Float?
+  contractValue Float?
+  quotedValue   Float?
+
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  stages        ProjectStage[]
+  tasks         Task[]
+  checklist     ProjectChecklistItem[]
+  risks         Risk[]
+  milestones    Milestone[]
+  statusReports StatusReport[]
+  meetingNotes  MeetingNote[]
+  experts       ProjectExpert[]
+  timeLogs      TimeLog[]
+
+  @@index([status, phase])
+  @@index([clientId])
+  @@index([ownerId])
+  @@map("projekty")
+}
+
+/// Etap harmonogramu — blok czasowy na wspolnym Gantcie wieloprojektowym.
+model ProjectStage {
+  id        String   @id @default(cuid())
+  projectId String
+  project   Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  name      String
+  /// Faza Elevate, do ktorej etap nalezy
+  phase     String   @default("EXPLORE")
+  startDate DateTime
+  endDate   DateTime
+  progress  Int      @default(0)
+  position  Int      @default(0)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  tasks Task[]
+
+  @@index([projectId])
+  @@map("harmonogram")
+}
+
+model Task {
+  id          String   @id @default(cuid())
+  code        String   @unique
+  projectId   String
+  project     Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  stageId     String?
+  stage       ProjectStage? @relation(fields: [stageId], references: [id], onDelete: SetNull)
+  title       String
+  description String?
+  /// TODO | IN_PROGRESS | REVIEW | BLOCKED | DONE
+  status      String   @default("TODO")
+  /// LOW | MEDIUM | HIGH | CRITICAL
+  priority    String   @default("MEDIUM")
+  assigneeId  String?
+  assignee    User?    @relation("TaskAssignee", fields: [assigneeId], references: [id], onDelete: SetNull)
+  /// Zadanie moze byc przypisane do eksperta zewnetrznego zamiast konsultanta
+  expertId    String?
+  expert      ExternalExpert? @relation(fields: [expertId], references: [id], onDelete: SetNull)
+  estimatedHours Float?
+  /// Suma godzin z TimeLog — utrzymywana przy zapisie wpisu czasu
+  actualHours    Float  @default(0)
+  dueDate     DateTime?
+  completedAt DateTime?
+  position    Int      @default(0)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  comments Comment[]
+  timeLogs TimeLog[]
+  meetingNoteItems MeetingNoteItem[]
+
+  @@index([projectId, status])
+  @@index([assigneeId, status])
+  @@index([dueDate])
+  @@map("zadania")
+}
+
+/// Zarejestrowana godzina pracy — jedyne zrodlo kosztu rzeczywistego (spec 02/04).
+model TimeLog {
+  id        String   @id @default(cuid())
+  taskId    String?
+  task      Task?    @relation(fields: [taskId], references: [id], onDelete: SetNull)
+  projectId String
+  project   Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  hours     Float
+  workDate  DateTime
+  note      String?
+  /// Stawka zamrozona w chwili zapisu — historyczna rentownosc nie zmienia sie po podwyzce
+  rateSnapshot Float?
+  createdAt DateTime @default(now())
+
+  @@index([projectId, workDate])
+  @@index([userId, workDate])
+  @@map("wpisy_czasu")
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+//  CHECKLISTY
+// ═══════════════════════════════════════════════════════════════════════════
+
+/// Szablon checklisty przypisany do typu uslugi — instancjonowany automatycznie
+/// przy zakladaniu projektu (spec 03).
+model ChecklistTemplate {
+  id          String   @id @default(cuid())
+  serviceType String   @unique
+  name        String
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  items ChecklistTemplateItem[]
+
+  @@map("szablony_checklist")
+}
+
+model ChecklistTemplateItem {
+  id         String   @id @default(cuid())
+  templateId String
+  template   ChecklistTemplate @relation(fields: [templateId], references: [id], onDelete: Cascade)
+  label      String
+  /// Faza Elevate, w ktorej pozycja ma zostac odhaczona
+  phase      String   @default("EXPLORE")
+  position   Int      @default(0)
+
+  @@index([templateId])
+  @@map("pozycje_szablonu_checklisty")
+}
+
+model ProjectChecklistItem {
+  id        String   @id @default(cuid())
+  projectId String
+  project   Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  label     String
+  phase     String   @default("EXPLORE")
+  isDone    Boolean  @default(false)
+  doneAt    DateTime?
+  doneById  String?
+  position  Int      @default(0)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([projectId, phase])
+  @@map("checklisty_projektow")
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+//  EKSPERCI ZEWNETRZNI
+// ═══════════════════════════════════════════════════════════════════════════
+
+/// Biblioteka podwykonawcow — niezalezna od projektow (spec 03).
+model ExternalExpert {
+  id         String   @id @default(cuid())
+  fullName   String
+  specialty  String
+  company    String?
+  email      String?
+  phone      String?
+  /// Pole finansowe — redagowane wg roli
+  hourlyRate Float?
+  /// DOSTEPNY | OGRANICZONA | NIEDOSTEPNY
+  availability String @default("DOSTEPNY")
+  rating     Int?
+  notes      String?
+  isActive   Boolean  @default(true)
+  /// Opcjonalne konto w systemie — ekspert widzi wtedy wylacznie swoje zadania
+  userId     String?  @unique
+  user       User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  assignments ProjectExpert[]
+  tasks       Task[]
+
+  @@map("eksperci_zewnetrzni")
+}
+
+model ProjectExpert {
+  id        String   @id @default(cuid())
+  projectId String
+  project   Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  expertId  String
+  expert    ExternalExpert @relation(fields: [expertId], references: [id], onDelete: Cascade)
+  scope     String
+  /// Pole finansowe — koszt podwykonawcy wchodzi do rentownosci projektu
+  contractValue Float?
+  startDate DateTime?
+  endDate   DateTime?
+  createdAt DateTime @default(now())
+
+  @@unique([projectId, expertId])
+  @@map("przypisania_ekspertow")
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+//  STATUS I RYZYKO
+// ═══════════════════════════════════════════════════════════════════════════
+
+model Risk {
+  id         String   @id @default(cuid())
+  projectId  String
+  project    Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  title      String
+  /// RYZYKO | PROBLEM
+  kind       String   @default("RYZYKO")
+  description String?
+  /// NISKI | SREDNI | WYSOKI
+  impact     String   @default("SREDNI")
+  probability String  @default("SREDNI")
+  mitigation String?
+  ownerId    String?
+  owner      User?    @relation("RiskOwner", fields: [ownerId], references: [id], onDelete: SetNull)
+  /// OPEN | MITIGATED | CLOSED
+  status     String   @default("OPEN")
+  dueDate    DateTime?
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@index([projectId, status])
+  @@map("ryzyka_i_problemy")
+}
+
+model Milestone {
+  id          String   @id @default(cuid())
+  projectId   String
+  project     Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  name        String
+  description String?
+  phase       String   @default("EXPLORE")
+  dueDate     DateTime
+  completedAt DateTime?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([projectId, dueDate])
+  @@map("kamienie_milowe")
+}
+
+model StatusReport {
+  id         String   @id @default(cuid())
+  projectId  String
+  project    Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  reportDate DateTime
+  ragStatus  String
+  summary    String
+  budgetNote String?
+  authorId   String?
+  author     User?    @relation(fields: [authorId], references: [id], onDelete: SetNull)
+  createdAt  DateTime @default(now())
+
+  @@index([projectId, reportDate])
+  @@map("raporty_statusowe")
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+//  WSPOLPRACA
+// ═══════════════════════════════════════════════════════════════════════════
+
+model MeetingNote {
+  id        String   @id @default(cuid())
+  title     String
+  meetingDate DateTime
+  projectId String?
+  project   Project? @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  clientId  String?
+  client    Client?  @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  content   String?
+  attendees String?
+  authorId  String?
+  author    User?    @relation(fields: [authorId], references: [id], onDelete: SetNull)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  items MeetingNoteItem[]
+
+  @@index([projectId])
+  @@index([clientId])
+  @@map("notatki_spotkan")
+}
+
+/// Punkt notatki — konwertowalny jednym kliknieciem na zadanie (spec 03).
+model MeetingNoteItem {
+  id       String   @id @default(cuid())
+  noteId   String
+  note     MeetingNote @relation(fields: [noteId], references: [id], onDelete: Cascade)
+  content  String
+  position Int      @default(0)
+  /// Zadanie powstale z konwersji tego punktu
+  taskId   String?
+  task     Task?    @relation(fields: [taskId], references: [id], onDelete: SetNull)
+
+  @@index([noteId])
+  @@map("punkty_notatki")
+}
+
+model Comment {
+  id        String   @id @default(cuid())
+  taskId    String
+  task      Task     @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  authorId  String
+  author    User     @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  body      String
+  /// Lista id wzmiankowanych uzytkownikow, rozdzielona przecinkami
+  mentions  String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([taskId, createdAt])
+  @@map("komentarze")
+}
+
+model Notification {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  /// TERMIN | OPOZNIENIE | WZMIANKA | KAMIEN_MILOWY | FOLLOW_UP
+  kind      String
+  title     String
+  body      String?
+  link      String?
+  readAt    DateTime?
+  createdAt DateTime @default(now())
+
+  @@index([userId, readAt])
+  @@map("powiadomienia")
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+//  KONFIGURACJA
+// ═══════════════════════════════════════════════════════════════════════════
+
+/// Edytowalne slowniki: typ uslugi / status / faza / etykiety — z kolorem.
+model ConfigLabel {
+  id       String  @id @default(cuid())
+  /// SERVICE_TYPE | PROJECT_STATUS | TASK_STATUS | PRIORITY | CLIENT_SEGMENT | ...
+  kind     String
+  value    String
+  label    String
+  color    String  @default("#194A99")
+  position Int     @default(0)
+  isActive Boolean @default(true)
+
+  @@unique([kind, value])
+  @@index([kind])
+  @@map("etykiety_konfiguracji")
+}
+
+/// Panel Usprawnien — zgloszenia uzytkownikow (spec 06).
+model Improvement {
+  id        String   @id @default(cuid())
+  authorId  String
+  author    User     @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  title     String
+  body      String
+  /// NOWY | W_ANALIZIE | WDROZONY | ODRZUCONY
+  status    String   @default("NOWY")
+  adminNote String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([status])
+  @@map("usprawnienia")
+}
+
+/// Rejestr zadan podmiotow danych (RODO art. 12 ust. 3 — obowiazek udokumentowania
+/// odpowiedzi w terminie). Kazde zadanie dostepu, przenoszenia albo usuniecia
+/// zostawia slad: kto, czego dotyczylo, kiedy zrealizowano.
+model GdprRequest {
+  id          String   @id @default(cuid())
+  /// EXPORT | ERASURE
+  kind        String
+  /// USER | CLIENT | CONTACT
+  subjectType String
+  subjectId   String
+  /// Nazwa podmiotu w chwili zadania — po anonimizacji nie da sie jej odtworzyc
+  subjectLabel String
+  requestedById String?
+  /// PENDING | COMPLETED | REJECTED
+  status      String   @default("COMPLETED")
+  note        String?
+  createdAt   DateTime @default(now())
+
+  @@index([subjectType, subjectId])
+  @@index([createdAt])
+  @@map("zadania_rodo")
+}
+
+/// Licznik numeracji (kody projektow i zadan) — transakcyjny, bez wyscigu.
+model Counter {
+  key   String @id
+  value Int    @default(0)
+
+  @@map("liczniki")
+}

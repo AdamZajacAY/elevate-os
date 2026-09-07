@@ -1,0 +1,133 @@
+@import "tailwindcss";
+
+/* ELEVATE OS — paleta i typografia zgodne ze specyfikacja produktowa.
+   Motyw jasny na :root, ciemny przez media query oraz [data-theme="dark"],
+   zeby przelacznik wygrywal w obu kierunkach. */
+
+:root {
+  --bg: #f0f3f6;
+  --surface: #ffffff;
+  --surface-2: #e8edf2;
+  --border: #d6dfe7;
+  --ink: #0f202c;
+  --ink-soft: #455a6b;
+  --muted: #5b7183;
+  --accent: #194a99;
+  --accent-deep: #194a99;
+  --accent-deepest: #003180;
+  --accent-soft: rgba(25, 74, 153, 0.08);
+  --good: #1e8f5f;
+  --good-soft: rgba(30, 143, 95, 0.1);
+  --warn: #96690d;
+  --warn-soft: rgba(150, 105, 13, 0.1);
+  --crit: #ae3a30;
+  --crit-soft: rgba(174, 58, 48, 0.1);
+  --shadow: 0 1px 2px rgba(15, 32, 44, 0.06), 0 8px 20px rgba(15, 32, 44, 0.06);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #09151a;
+    --surface: #101f2a;
+    --surface-2: #0c1922;
+    --border: #213240;
+    --ink: #ecf2f7;
+    --ink-soft: #a9bac7;
+    --muted: #7e93a3;
+    --accent: #609dff;
+    --accent-deep: #194a99;
+    --accent-soft: rgba(96, 157, 255, 0.14);
+    --good: #3fbe8b;
+    --good-soft: rgba(63, 190, 139, 0.14);
+    --warn: #e3ac49;
+    --warn-soft: rgba(227, 172, 73, 0.14);
+    --crit: #e2685c;
+    --crit-soft: rgba(226, 104, 92, 0.16);
+    --shadow: 0 1px 2px rgba(0, 0, 0, 0.4), 0 10px 28px rgba(0, 0, 0, 0.38);
+  }
+}
+
+:root[data-theme="dark"] {
+  --bg: #09151a;
+  --surface: #101f2a;
+  --surface-2: #0c1922;
+  --border: #213240;
+  --ink: #ecf2f7;
+  --ink-soft: #a9bac7;
+  --muted: #7e93a3;
+  --accent: #609dff;
+  --accent-deep: #194a99;
+  --accent-soft: rgba(96, 157, 255, 0.14);
+  --good: #3fbe8b;
+  --good-soft: rgba(63, 190, 139, 0.14);
+  --warn: #e3ac49;
+  --warn-soft: rgba(227, 172, 73, 0.14);
+  --crit: #e2685c;
+  --crit-soft: rgba(226, 104, 92, 0.16);
+  --shadow: 0 1px 2px rgba(0, 0, 0, 0.4), 0 10px 28px rgba(0, 0, 0, 0.38);
+}
+
+@theme inline {
+  --color-bg: var(--bg);
+  --color-surface: var(--surface);
+  --color-surface-2: var(--surface-2);
+  --color-border: var(--border);
+  --color-ink: var(--ink);
+  --color-ink-soft: var(--ink-soft);
+  --color-muted: var(--muted);
+  --color-accent: var(--accent);
+  --color-accent-deep: var(--accent-deep);
+  --color-accent-soft: var(--accent-soft);
+  --color-good: var(--good);
+  --color-good-soft: var(--good-soft);
+  --color-warn: var(--warn);
+  --color-warn-soft: var(--warn-soft);
+  --color-crit: var(--crit);
+  --color-crit-soft: var(--crit-soft);
+  --font-display: var(--font-merriweather), Georgia, serif;
+  --shadow-card: var(--shadow);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  background: var(--bg);
+  color: var(--ink);
+  font-family:
+    -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  font-size: 15px;
+  line-height: 1.6;
+  -webkit-font-smoothing: antialiased;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * {
+    transition: none !important;
+    animation: none !important;
+  }
+}
+
+::selection {
+  background: var(--accent-soft);
+}
+
+/* Pasek przewijania spojny z motywem */
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+::-webkit-scrollbar-track {
+  background: var(--surface-2);
+}
+::-webkit-scrollbar-thumb {
+  background: var(--border);
+  border-radius: 6px;
+}

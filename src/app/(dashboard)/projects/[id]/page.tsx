@@ -1,0 +1,339 @@
+import Link from "next/link";
+import { notFound } from "next/navigation";
+import { prisma } from "@/lib/prisma";
+import { requireModule } from "@/server/session";
+import { canReadAllProjects, canSeeFinancials, canWriteProject } from "@/lib/rbac";
+import { Card, CardHeader, StatTile, RedactedValue } from "@/components/ui/Card";
+import { Pill, ragTone, priorityTone } from "@/components/ui/Pill";
+import { EmptyState } from "@/components/ui/EmptyState";
+import { ProjectChecklist } from "@/components/ProjectChecklist";
+import { MeetingNotes } from "@/components/projects/MeetingNotes";
+import { StatusReports } from "@/components/projects/StatusReports";
+import {
+  PHASE_LABEL,
+  PROJECT_STATUS_LABEL,
+  SERVICE_TYPE_LABEL,
+  TASK_STATUS_LABEL,
+  PRIORITY_LABEL,
+  RISK_STATUS_LABEL,
+  labelOf,
+} from "@/lib/domain";
+import { formatMoney, formatDate, formatHours } from "@/lib/format";
+
+export const dynamic = "force-dynamic";
+
+export default async function ProjectDetailPage({
+  params,
+}: {
+  params: Promise<{ id: string }>;
+}) {
+  const user = await requireModule("projects");
+  const { id } = await params;
+
+  // Konsultant widzi projekt tylko jako opiekun albo wykonawca zadania (spec 06).
+  const scope = canReadAllProjects(user.role)
+    ? { id }
+    : {
+        id,
+        OR: [{ ownerId: user.id }, { tasks: { some: { assigneeId: user.id } } }],
+      };
+
+  const project = await prisma.project.findFirst({
+    where: scope,
+    include: {
+      client: { select: { id: true, name: true, industry: true } },
+      owner: { select: { id: true, fullName: true } },
+      stages: { orderBy: { startDate: "asc" } },
+      tasks: {
+        include: { assignee: { select: { fullName: true } }, expert: { select: { fullName: true } } },
+        orderBy: [{ dueDate: "asc" }],
+      },
+      checklist: { orderBy: [{ position: "asc" }] },
+      risks: { include: { owner: { select: { fullName: true } } }, orderBy: { createdAt: "desc" } },
+      milestones: { orderBy: { dueDate: "asc" } },
+      experts: { include: { expert: { select: { fullName: true, specialty: true } } } },
+      meetingNotes: {
+        include: {
+          author: { select: { fullName: true } },
+          items: {
+            orderBy: { position: "asc" },
+            include: { task: { select: { id: true, code: true } } },
+          },
+        },
+        orderBy: { meetingDate: "desc" },
+      },
+      statusReports: {
+        include: { author: { select: { fullName: true } } },
+        orderBy: { reportDate: "desc" },
+      },
+    },
+  });
+
+  if (!project) notFound();
+
+  const teamMembers = await prisma.user.findMany({
+    where: { isActive: true },
+    select: { id: true, fullName: true },
+    orderBy: { fullName: "asc" },
+  });
+
+  const showMoney = canSeeFinancials(user.role);
+  const doneTasks = project.tasks.filter((t) => t.status === "DONE").length;
+  const totalHours = project.tasks.reduce((sum, t) => sum + t.actualHours, 0);
+  const estimatedHours = project.tasks.reduce((sum, t) => sum + (t.estimatedHours ?? 0), 0);
+  const openRisks = project.risks.filter((r) => r.status === "OPEN").length;
+
+  return (
+    <div className="space-y-6">
+      <header className="flex flex-wrap items-start justify-between gap-4">
+        <div className="min-w-0">
+          <div className="flex flex-wrap items-center gap-2.5">
+            <span className="font-mono text-[11.5px] text-accent">{project.code}</span>
+            <Pill tone={ragTone(project.ragStatus)} dot>
+              {project.ragStatus}
+            </Pill>
+            <Pill tone="accent">{labelOf(PHASE_LABEL, project.phase)}</Pill>
+            <Pill>{labelOf(PROJECT_STATUS_LABEL, project.status)}</Pill>
+          </div>
+          <h1 className="mt-2 font-display text-[28px] font-black leading-tight tracking-tight text-ink">
+            {project.name}
+          </h1>
+          <p className="mt-1 text-[13.5px] text-ink-soft">
+            {project.client.name}
+            {project.client.industry ? ` · ${project.client.industry}` : ""} ·{" "}
+            {labelOf(SERVICE_TYPE_LABEL, project.serviceType)} · opiekun:{" "}
+            {project.owner?.fullName ?? "nieprzypisany"}
+          </p>
+        </div>
+        <Link
+          href="/projects"
+          className="rounded-lg border border-border px-3.5 py-1.5 text-[13px] font-semibold text-ink-soft hover:bg-surface-2"
+        >
+          ← Projekty
+        </Link>
+      </header>
+
+      <div className="grid grid-cols-2 gap-3.5 lg:grid-cols-4">
+        <StatTile
+          label="Zadania"
+          value={`${doneTasks}/${project.tasks.length}`}
+          hint="zrobione / wszystkie"
+        />
+        <StatTile
+          label="Godziny"
+          value={formatHours(totalHours)}
+          hint={estimatedHours > 0 ? `szacowane ${formatHours(estimatedHours)}` : "bez szacunku"}
+          tone={estimatedHours > 0 && totalHours > estimatedHours ? "warn" : "ink"}
+        />
+        <StatTile
+          label="Otwarte ryzyka"
+          value={String(openRisks)}
+          tone={openRisks > 0 ? "warn" : "good"}
+        />
+        <StatTile
+          label="Wartość umowy"
+          tone="accent"
+          value={showMoney ? (formatMoney(project.contractValue) ?? "—") : <RedactedValue />}
+          hint={
+            showMoney
+              ? `budżet ${formatMoney(project.budget) ?? "—"}`
+              : "pole zredagowane dla Twojej roli"
+          }
+        />
+      </div>
+
+      {project.description && (
+        <Card>
+          <CardHeader title="Zakres" />
+          <p className="whitespace-pre-wrap px-5 py-4 text-[13.5px] text-ink-soft">
+            {project.description}
+          </p>
+        </Card>
+      )}
+
+      <div className="grid gap-5 lg:grid-cols-[1.4fr_1fr]">
+        <Card>
+          <CardHeader
+            title="Zadania"
+            subtitle={`${project.tasks.length} pozycji`}
+            action={
+              <Link
+                href={`/tasks?projekt=${project.id}`}
+                className="text-[12.5px] font-semibold text-accent"
+              >
+                Tablica →
+              </Link>
+            }
+          />
+          <div className="p-3">
+            {project.tasks.length === 0 ? (
+              <EmptyState title="Brak zadań" hint="Dodaj pierwsze zadanie na tablicy." />
+            ) : (
+              <ul className="space-y-1">
+                {project.tasks.slice(0, 12).map((task) => (
+                  <li
+                    key={task.id}
+                    className="flex items-center gap-3 rounded-xl px-2.5 py-2 hover:bg-surface-2"
+                  >
+                    <span className="font-mono text-[10.5px] text-muted">{task.code}</span>
+                    <Link
+                      href={`/tasks/${task.id}`}
+                      className="min-w-0 flex-1 truncate text-[13.5px] text-ink hover:text-accent"
+                    >
+                      {task.title}
+                    </Link>
+                    <span className="shrink-0 text-[11.5px] text-muted">
+                      {task.assignee?.fullName ?? task.expert?.fullName ?? "nieprzypisane"}
+                    </span>
+                    <Pill tone={priorityTone(task.priority)}>
+                      {labelOf(PRIORITY_LABEL, task.priority)}
+                    </Pill>
+                    <span className="w-[92px] shrink-0 text-right font-mono text-[10.5px] text-muted">
+                      {labelOf(TASK_STATUS_LABEL, task.status)}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+        </Card>
+
+        {/* Checklista instancjonowana automatycznie z szablonu typu uslugi (spec 03) */}
+        <ProjectChecklist items={project.checklist} />
+      </div>
+
+      <div className="grid gap-5 lg:grid-cols-2">
+        <Card>
+          <CardHeader title="Kamienie milowe" subtitle="Kluczowe daty decyzyjne" />
+          <div className="p-3">
+            {project.milestones.length === 0 ? (
+              <EmptyState title="Brak kamieni milowych" />
+            ) : (
+              <ul className="space-y-1">
+                {project.milestones.map((ms) => (
+                  <li
+                    key={ms.id}
+                    className="flex items-center gap-3 rounded-xl px-2.5 py-2 hover:bg-surface-2"
+                  >
+                    <span
+                      className={`h-2 w-2 shrink-0 rounded-full ${
+                        ms.completedAt ? "bg-good" : "bg-border"
+                      }`}
+                    />
+                    <span className="min-w-0 flex-1 truncate text-[13.5px] text-ink">{ms.name}</span>
+                    <Pill tone="neutral">{labelOf(PHASE_LABEL, ms.phase)}</Pill>
+                    <span className="shrink-0 font-mono text-[11px] text-muted">
+                      {formatDate(ms.dueDate)}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+        </Card>
+
+        <Card>
+          <CardHeader title="Ryzyka i problemy" subtitle="Zasila status RAG projektu" />
+          <div className="p-3">
+            {project.risks.length === 0 ? (
+              <EmptyState title="Rejestr ryzyk pusty" />
+            ) : (
+              <ul className="space-y-1">
+                {project.risks.map((risk) => (
+                  <li key={risk.id} className="rounded-xl px-2.5 py-2 hover:bg-surface-2">
+                    <div className="flex items-center gap-3">
+                      <span className="min-w-0 flex-1 truncate text-[13.5px] text-ink">
+                        {risk.title}
+                      </span>
+                      <Pill tone={risk.impact === "WYSOKI" ? "crit" : "warn"}>
+                        wpływ {risk.impact.toLowerCase()}
+                      </Pill>
+                      <Pill tone={risk.status === "OPEN" ? "warn" : "good"}>
+                        {labelOf(RISK_STATUS_LABEL, risk.status)}
+                      </Pill>
+                    </div>
+                    {risk.mitigation && (
+                      <p className="mt-1 text-[12px] text-muted">Mitygacja: {risk.mitigation}</p>
+                    )}
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+        </Card>
+      </div>
+
+      <div className="grid gap-5 lg:grid-cols-2">
+        <MeetingNotes
+          projectId={project.id}
+          teamMembers={teamMembers}
+          notes={project.meetingNotes.map((n) => ({
+            id: n.id,
+            title: n.title,
+            meetingDate: n.meetingDate.toISOString(),
+            content: n.content,
+            attendees: n.attendees,
+            authorName: n.author?.fullName ?? "—",
+            items: n.items.map((i) => ({
+              id: i.id,
+              content: i.content,
+              taskId: i.task?.id ?? null,
+              taskCode: i.task?.code ?? null,
+            })),
+          }))}
+        />
+
+        <StatusReports
+          projectId={project.id}
+          currentRag={project.ragStatus}
+          canWrite={canWriteProject(user.role, user.id, project)}
+          reports={project.statusReports.map((r) => ({
+            id: r.id,
+            reportDate: r.reportDate.toISOString(),
+            ragStatus: r.ragStatus,
+            summary: r.summary,
+            budgetNote: r.budgetNote,
+            authorName: r.author?.fullName ?? "—",
+          }))}
+        />
+      </div>
+
+      <Card>
+        <CardHeader
+          title="Harmonogram projektu"
+          subtitle="Etapy na osi czasu"
+          action={
+            <Link href="/gantt" className="text-[12.5px] font-semibold text-accent">
+              Widok wieloprojektowy →
+            </Link>
+          }
+        />
+        <div className="p-3">
+          {project.stages.length === 0 ? (
+            <EmptyState title="Brak etapów harmonogramu" />
+          ) : (
+            <ul className="space-y-1">
+              {project.stages.map((stage) => (
+                <li
+                  key={stage.id}
+                  className="flex items-center gap-3 rounded-xl px-2.5 py-2 hover:bg-surface-2"
+                >
+                  <span className="min-w-0 flex-1 truncate text-[13.5px] text-ink">
+                    {stage.name}
+                  </span>
+                  <Pill tone="neutral">{labelOf(PHASE_LABEL, stage.phase)}</Pill>
+                  <span className="shrink-0 font-mono text-[11px] text-muted">
+                    {formatDate(stage.startDate)} → {formatDate(stage.endDate)}
+                  </span>
+                  <span className="w-[42px] shrink-0 text-right font-mono text-[11px] text-accent">
+                    {stage.progress}%
+                  </span>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      </Card>
+    </div>
+  );
+}
