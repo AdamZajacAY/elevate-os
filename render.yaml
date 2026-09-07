@@ -13,6 +13,10 @@ databases:
     # Plan "free" kasuje bazę po 30 dniach bezczynności i nie robi kopii.
     plan: free
     postgresMajorVersion: "16"
+    # BEZ tego pola Render stawia bazę w Oregonie, niezależnie od regionu usługi.
+    # Musi być ten sam region co usługa: inaczej każde zapytanie leci przez Atlantyk,
+    # a dane osobowe klientów lądują poza EU (RODO).
+    region: frankfurt
 
 services:
   - type: web
@@ -22,8 +26,10 @@ services:
     region: frankfurt
     branch: main
 
-    # `build` generuje klienta Prismy i buduje Next.
-    buildCommand: npm ci && npm run build
+    # `--include=dev` jest konieczne: niżej ustawiamy NODE_ENV=production, a przy
+    # tej zmiennej `npm ci` pomija devDependencies — w których są `prisma`,
+    # `typescript` i `tailwindcss`, bez których build nie przejdzie.
+    buildCommand: npm ci --include=dev && npm run build
     # `start` najpierw dokłada migracje do bazy, potem podnosi serwer.
     startCommand: npm run start
 
