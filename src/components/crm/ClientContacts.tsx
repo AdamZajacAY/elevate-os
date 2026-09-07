@@ -34,15 +34,16 @@ export function ClientContacts({
   contacts: Contact[];
 }) {
   const router = useRouter();
-  const [open, setOpen] = useState(false);
+  const [addOpen, setAddOpen] = useState(false);
+  const [editing, setEditing] = useState<Contact | null>(null);
 
   return (
     <Card>
       <CardHeader
         title="Kontakty"
-        subtitle={`${contacts.length} ${contacts.length === 1 ? "osoba" : "osób"} po stronie klienta`}
+        subtitle={`${contacts.length} ${contacts.length === 1 ? "osoba" : "osób"} — kliknij nazwisko, żeby edytować`}
         action={
-          <button onClick={() => setOpen(true)} className="text-[12.5px] font-semibold text-accent">
+          <button onClick={() => setAddOpen(true)} className="text-[12.5px] font-semibold text-accent">
             + Dodaj
           </button>
         }
@@ -55,9 +56,13 @@ export function ClientContacts({
             {contacts.map((c) => (
               <li key={c.id} className="rounded-xl px-2.5 py-2 hover:bg-surface-2">
                 <div className="flex items-center gap-2.5">
-                  <span className="min-w-0 flex-1 truncate text-[13.5px] font-medium text-ink">
+                  <button
+                    onClick={() => setEditing(c)}
+                    title="Edytuj kontakt"
+                    className="min-w-0 flex-1 truncate text-left text-[13.5px] font-medium text-ink hover:text-accent"
+                  >
                     {c.fullName}
-                  </span>
+                  </button>
                   {c.isPrimary && <Pill tone="accent">główny</Pill>}
                   <Pill tone={c.decisionLevel === "DECYDENT" ? "good" : "neutral"}>
                     {DECISION_LABEL[c.decisionLevel] ?? c.decisionLevel}
@@ -72,12 +77,24 @@ export function ClientContacts({
         )}
       </div>
 
-      {open && (
-        <NewContactDialog
+      {addOpen && (
+        <ContactDialog
           clientId={clientId}
-          onClose={() => setOpen(false)}
-          onCreated={() => {
-            setOpen(false);
+          onClose={() => setAddOpen(false)}
+          onSaved={() => {
+            setAddOpen(false);
+            router.refresh();
+          }}
+        />
+      )}
+
+      {editing && (
+        <ContactDialog
+          clientId={clientId}
+          contact={editing}
+          onClose={() => setEditing(null)}
+          onSaved={() => {
+            setEditing(null);
             router.refresh();
           }}
         />
@@ -86,15 +103,22 @@ export function ClientContacts({
   );
 }
 
-function NewContactDialog({
+/**
+ * Okno kontaktu — jedno dla dodawania i edycji, tak jak przy kliencie.
+ * Tryb wynika z obecności `contact`.
+ */
+function ContactDialog({
   clientId,
+  contact,
   onClose,
-  onCreated,
+  onSaved,
 }: {
   clientId: string;
+  contact?: Contact;
   onClose: () => void;
-  onCreated: () => void;
+  onSaved: () => void;
 }) {
+  const isEdit = !!contact;
   const [error, setError] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
 
@@ -106,11 +130,11 @@ function NewContactDialog({
     const form = new FormData(e.currentTarget);
     const text = (key: string) => String(form.get(key) ?? "").trim();
 
-    const res = await fetch("/api/contacts", {
-      method: "POST",
+    const res = await fetch(isEdit ? `/api/contacts/${contact.id}` : "/api/contacts", {
+      method: isEdit ? "PATCH" : "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        clientId,
+        ...(isEdit ? {} : { clientId }),
         fullName: text("fullName"),
         position: text("position"),
         email: text("email"),
@@ -125,25 +149,35 @@ function NewContactDialog({
       setPending(false);
       return;
     }
-    onCreated();
+    onSaved();
   }
 
   return (
-    <Dialog title="Nowy kontakt" onClose={onClose}>
+    <Dialog title={isEdit ? `Edycja: ${contact.fullName}` : "Nowy kontakt"} onClose={onClose}>
       <form onSubmit={onSubmit} className="mt-5 space-y-4">
         <label className="block">
           <span className={dialogLabel}>Imię i nazwisko</span>
-          <input name="fullName" required minLength={2} className={dialogField} />
+          <input
+            name="fullName"
+            required
+            minLength={2}
+            defaultValue={contact?.fullName ?? ""}
+            className={dialogField}
+          />
         </label>
 
         <div className="grid gap-4 sm:grid-cols-2">
           <label className="block">
             <span className={dialogLabel}>Stanowisko</span>
-            <input name="position" className={dialogField} />
+            <input name="position" defaultValue={contact?.position ?? ""} className={dialogField} />
           </label>
           <label className="block">
             <span className={dialogLabel}>Poziom decyzyjny</span>
-            <select name="decisionLevel" className={dialogField} defaultValue="OPERACYJNY">
+            <select
+              name="decisionLevel"
+              className={dialogField}
+              defaultValue={contact?.decisionLevel ?? "OPERACYJNY"}
+            >
               {DECISION_LEVELS.map(([value, label]) => (
                 <option key={value} value={value}>
                   {label}
@@ -153,11 +187,11 @@ function NewContactDialog({
           </label>
           <label className="block">
             <span className={dialogLabel}>E-mail</span>
-            <input type="email" name="email" className={dialogField} />
+            <input type="email" name="email" defaultValue={contact?.email ?? ""} className={dialogField} />
           </label>
           <label className="block">
             <span className={dialogLabel}>Telefon</span>
-            <input name="phone" className={dialogField} />
+            <input name="phone" defaultValue={contact?.phone ?? ""} className={dialogField} />
           </label>
         </div>
 
@@ -165,6 +199,7 @@ function NewContactDialog({
           <input
             type="checkbox"
             name="isPrimary"
+            defaultChecked={contact?.isPrimary ?? false}
             className="h-4 w-4 accent-[var(--accent-deep)]"
           />
           <span className="text-[13px] text-ink-soft">Kontakt główny</span>
@@ -182,7 +217,7 @@ function NewContactDialog({
             disabled={pending}
             className="rounded-lg bg-accent-deep px-5 py-2.5 text-[14px] font-bold text-white hover:opacity-90 disabled:opacity-50"
           >
-            {pending ? "Zapisywanie…" : "Dodaj kontakt"}
+            {pending ? "Zapisywanie…" : isEdit ? "Zapisz zmiany" : "Dodaj kontakt"}
           </button>
           <button
             type="button"

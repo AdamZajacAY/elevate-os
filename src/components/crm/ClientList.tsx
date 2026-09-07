@@ -13,7 +13,7 @@ import {
   labelOf,
 } from "@/lib/domain";
 import { formatDate, daysUntil } from "@/lib/format";
-import { NewClientDialog } from "@/components/crm/NewClientDialog";
+import { ClientDialog } from "@/components/crm/ClientDialog";
 
 export type ClientRow = {
   id: string;
@@ -165,9 +165,9 @@ export function ClientList({ clients }: { clients: ClientRow[] }) {
       )}
 
       {dialogOpen && (
-        <NewClientDialog
+        <ClientDialog
           onClose={() => setDialogOpen(false)}
-          onCreated={() => {
+          onSaved={() => {
             setDialogOpen(false);
             router.refresh();
           }}

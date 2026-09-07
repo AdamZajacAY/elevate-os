@@ -8,6 +8,7 @@ import { Pill, ragTone } from "@/components/ui/Pill";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { ClientContacts } from "@/components/crm/ClientContacts";
 import { MeetingNotes } from "@/components/projects/MeetingNotes";
+import { EditClientButton } from "@/components/crm/EditClientButton";
 import {
   CLIENT_SEGMENT_LABEL,
   CLIENT_STATUS_LABEL,
@@ -91,12 +92,27 @@ export default async function ClientDetailPage({
             {formatDate(client.lastContactAt)}
           </p>
         </div>
-        <Link
-          href="/crm"
-          className="rounded-lg border border-border px-3.5 py-1.5 text-[13px] font-semibold text-ink-soft hover:bg-surface-2"
-        >
-          ← CRM
-        </Link>
+        <div className="flex shrink-0 items-center gap-2.5">
+          <EditClientButton
+            client={{
+              id: client.id,
+              name: client.name,
+              industry: client.industry,
+              segment: client.segment,
+              status: client.status,
+              nip: client.nip,
+              city: client.city,
+              website: client.website,
+              notes: client.notes,
+            }}
+          />
+          <Link
+            href="/crm"
+            className="rounded-lg border border-border px-3.5 py-1.5 text-[13px] font-semibold text-ink-soft hover:bg-surface-2"
+          >
+            ← CRM
+          </Link>
+        </div>
       </header>
 
       <div className="grid grid-cols-2 gap-3.5 lg:grid-cols-4">
