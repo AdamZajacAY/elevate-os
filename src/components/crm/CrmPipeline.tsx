@@ -242,6 +242,19 @@ export function CrmPipeline({
         })}
       </div>
 
+      {newOpen && (
+        <NewOpportunityDialog
+          clients={clients}
+          owners={owners}
+          showMoney={showMoney}
+          onClose={() => setNewOpen(false)}
+          onCreated={() => {
+            setNewOpen(false);
+            router.refresh();
+          }}
+        />
+      )}
+
       {closing && (
         <CloseOpportunityDialog
           opportunity={closing}
