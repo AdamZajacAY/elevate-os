@@ -8,6 +8,8 @@ import { Pill, ragTone, priorityTone } from "@/components/ui/Pill";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { ProjectChecklist } from "@/components/ProjectChecklist";
 import { EditProjectButton } from "@/components/projects/EditProjectButton";
+import { Milestones } from "@/components/projects/Milestones";
+import { Risks } from "@/components/projects/Risks";
 import { MeetingNotes } from "@/components/projects/MeetingNotes";
 import { StatusReports } from "@/components/projects/StatusReports";
 import {
@@ -18,7 +20,6 @@ import {
   SERVICE_TYPE_LABEL,
   TASK_STATUS_LABEL,
   PRIORITY_LABEL,
-  RISK_STATUS_LABEL,
   labelOf,
 } from "@/lib/domain";
 import { formatMoney, formatDate, formatHours } from "@/lib/format";
@@ -52,7 +53,10 @@ export default async function ProjectDetailPage({
         orderBy: [{ dueDate: "asc" }],
       },
       checklist: { orderBy: [{ position: "asc" }] },
-      risks: { include: { owner: { select: { fullName: true } } }, orderBy: { createdAt: "desc" } },
+      risks: {
+        include: { owner: { select: { id: true, fullName: true } } },
+        orderBy: [{ status: "asc" }, { createdAt: "desc" }],
+      },
       milestones: { orderBy: { dueDate: "asc" } },
       experts: { include: { expert: { select: { fullName: true, specialty: true } } } },
       meetingNotes: {
@@ -266,64 +270,37 @@ export default async function ProjectDetailPage({
       </div>
 
       <div className="grid gap-5 lg:grid-cols-2">
-        <Card>
-          <CardHeader title="Kamienie milowe" subtitle="Kluczowe daty decyzyjne" />
-          <div className="p-3">
-            {project.milestones.length === 0 ? (
-              <EmptyState title="Brak kamieni milowych" />
-            ) : (
-              <ul className="space-y-1">
-                {project.milestones.map((ms) => (
-                  <li
-                    key={ms.id}
-                    className="flex items-center gap-3 rounded-xl px-2.5 py-2 hover:bg-surface-2"
-                  >
-                    <span
-                      className={`h-2 w-2 shrink-0 rounded-full ${
-                        ms.completedAt ? "bg-good" : "bg-border"
-                      }`}
-                    />
-                    <span className="min-w-0 flex-1 truncate text-[13.5px] text-ink">{ms.name}</span>
-                    <Pill tone="neutral">{labelOf(PHASE_LABEL, ms.phase)}</Pill>
-                    <span className="shrink-0 font-mono text-[11px] text-muted">
-                      {formatDate(ms.dueDate)}
-                    </span>
-                  </li>
-                ))}
-              </ul>
-            )}
-          </div>
-        </Card>
+        <Milestones
+          projectId={project.id}
+          canEdit={mayEdit}
+          milestones={project.milestones.map((m) => ({
+            id: m.id,
+            name: m.name,
+            description: m.description,
+            phase: m.phase,
+            dueDate: m.dueDate.toISOString(),
+            completedAt: m.completedAt?.toISOString() ?? null,
+          }))}
+        />
 
-        <Card>
-          <CardHeader title="Ryzyka i problemy" subtitle="Zasila status RAG projektu" />
-          <div className="p-3">
-            {project.risks.length === 0 ? (
-              <EmptyState title="Rejestr ryzyk pusty" />
-            ) : (
-              <ul className="space-y-1">
-                {project.risks.map((risk) => (
-                  <li key={risk.id} className="rounded-xl px-2.5 py-2 hover:bg-surface-2">
-                    <div className="flex items-center gap-3">
-                      <span className="min-w-0 flex-1 truncate text-[13.5px] text-ink">
-                        {risk.title}
-                      </span>
-                      <Pill tone={risk.impact === "WYSOKI" ? "crit" : "warn"}>
-                        wpływ {risk.impact.toLowerCase()}
-                      </Pill>
-                      <Pill tone={risk.status === "OPEN" ? "warn" : "good"}>
-                        {labelOf(RISK_STATUS_LABEL, risk.status)}
-                      </Pill>
-                    </div>
-                    {risk.mitigation && (
-                      <p className="mt-1 text-[12px] text-muted">Mitygacja: {risk.mitigation}</p>
-                    )}
-                  </li>
-                ))}
-              </ul>
-            )}
-          </div>
-        </Card>
+        <Risks
+          projectId={project.id}
+          canEdit={mayEdit}
+          owners={teamMembers}
+          risks={project.risks.map((r) => ({
+            id: r.id,
+            title: r.title,
+            kind: r.kind,
+            description: r.description,
+            impact: r.impact,
+            probability: r.probability,
+            mitigation: r.mitigation,
+            status: r.status,
+            ownerId: r.ownerId,
+            ownerName: r.owner?.fullName ?? null,
+            dueDate: r.dueDate?.toISOString() ?? null,
+          }))}
+        />
       </div>
 
       <div className="grid gap-5 lg:grid-cols-2">

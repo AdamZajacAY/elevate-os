@@ -63,6 +63,15 @@ const optionalDate = z
 /** Data wymagana. */
 const requiredDate = z.union([z.string().min(1), z.date()]).transform((v) => new Date(v));
 
+/**
+ * Data opcjonalna, ale **nie** nullowalna — do pol, ktore w bazie sa wymagane.
+ * Mozna ich nie przysylac przy PATCH, ale nie mozna ich wyczyscic.
+ */
+const optionalRequiredDate = z
+  .union([z.string().min(1), z.date()])
+  .optional()
+  .transform((v) => (v === undefined ? undefined : new Date(v)));
+
 /** Odwolanie do rekordu: id albo jawne odpiecie przez null. */
 const optionalRef = z
   .union([z.string().min(1), z.null()])
@@ -308,25 +317,47 @@ export const opportunityCloseSchema = z
 //  RYZYKA, KAMIENIE MILOWE
 // ═══════════════════════════════════════════════════════════════════════════
 
-export const riskCreateSchema = z.object({
-  projectId: z.string().min(1),
+const riskFields = {
   title: z.string().trim().min(3).max(200),
-  kind: z.enum(["RYZYKO", "PROBLEM"]).default("RYZYKO"),
+  kind: z.enum(["RYZYKO", "PROBLEM"]),
   description: optionalText,
-  impact: z.enum(["NISKI", "SREDNI", "WYSOKI"]).default("SREDNI"),
-  probability: z.enum(["NISKI", "SREDNI", "WYSOKI"]).default("SREDNI"),
+  impact: z.enum(["NISKI", "SREDNI", "WYSOKI"]),
+  probability: z.enum(["NISKI", "SREDNI", "WYSOKI"]),
   mitigation: optionalText,
   ownerId: optionalRef,
+  status: z.enum(["OPEN", "MITIGATED", "CLOSED"]),
   dueDate: optionalDate,
+};
+
+export const riskCreateSchema = z.object({
+  ...riskFields,
+  projectId: z.string().min(1),
+  kind: riskFields.kind.default("RYZYKO"),
+  impact: riskFields.impact.default("SREDNI"),
+  probability: riskFields.probability.default("SREDNI"),
+  status: riskFields.status.default("OPEN"),
 });
 
-export const milestoneCreateSchema = z.object({
-  projectId: z.string().min(1),
+export const riskUpdateSchema = nonEmptyPatch(z.object(riskFields).partial());
+
+const milestoneFields = {
   name: z.string().trim().min(3).max(200),
   description: optionalText,
-  phase: z.enum(PHASES).default("EXPLORE"),
+  phase: z.enum(PHASES),
+  /// Termin jest w bazie wymagany — da sie go przesunac, nie da sie wyczyscic.
+  dueDate: optionalRequiredDate,
+  /// Odhaczenie jest odwracalne — null cofa realizacje.
+  completedAt: optionalDate,
+};
+
+export const milestoneCreateSchema = z.object({
+  ...milestoneFields,
+  projectId: z.string().min(1),
+  phase: milestoneFields.phase.default("EXPLORE"),
   dueDate: requiredDate,
 });
+
+export const milestoneUpdateSchema = nonEmptyPatch(z.object(milestoneFields).partial());
 
 // ═══════════════════════════════════════════════════════════════════════════
 //  UZYTKOWNICY / ADMIN
