@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 import { requireModule } from "@/server/session";
-import { projectScopeWhere, canSeeFinancials } from "@/lib/rbac";
+import { projectScopeWhere, canSeeFinancials, canWriteProject } from "@/lib/rbac";
 import { Card, RedactedValue } from "@/components/ui/Card";
 import { Pill, ragTone } from "@/components/ui/Pill";
 import { EmptyState } from "@/components/ui/EmptyState";
@@ -12,6 +12,7 @@ import {
 } from "@/lib/domain";
 import { formatMoney, formatDate } from "@/lib/format";
 import { ProjectFilters } from "@/components/ProjectFilters";
+import { ProjectStatusSelect } from "@/components/projects/ProjectStatusSelect";
 
 export const metadata = { title: "Projekty — ELEVATE OS" };
 export const dynamic = "force-dynamic";
@@ -76,7 +77,7 @@ export default async function ProjectsPage({
         />
       ) : (
         <Card className="overflow-x-auto">
-          <table className="w-full min-w-[860px] text-[13px]">
+          <table className="w-full min-w-[960px] text-[13px]">
             <thead>
               <tr className="border-b border-border bg-surface-2 text-left font-mono text-[10.5px] uppercase tracking-wider text-muted">
                 <th className="px-4 py-3">Kod</th>
@@ -84,6 +85,7 @@ export default async function ProjectsPage({
                 <th className="px-4 py-3">Klient</th>
                 <th className="px-4 py-3">Typ usługi</th>
                 <th className="px-4 py-3">Faza</th>
+                <th className="px-4 py-3">Status</th>
                 <th className="px-4 py-3">RAG</th>
                 <th className="px-4 py-3">Opiekun</th>
                 <th className="px-4 py-3">Termin</th>
@@ -92,7 +94,12 @@ export default async function ProjectsPage({
             </thead>
             <tbody>
               {projects.map((p) => (
-                <tr key={p.id} className="border-b border-border last:border-0 hover:bg-surface-2">
+                <tr
+                  key={p.id}
+                  className={`border-b border-border last:border-0 hover:bg-surface-2 ${
+                    p.status === "CLOSED" ? "opacity-60" : ""
+                  }`}
+                >
                   <td className="px-4 py-3 font-mono text-[11.5px] text-accent">
                     <Link href={`/projects/${p.id}`}>{p.code}</Link>
                   </td>
@@ -109,6 +116,13 @@ export default async function ProjectsPage({
                     {labelOf(SERVICE_TYPE_LABEL, p.serviceType)}
                   </td>
                   <td className="px-4 py-3 text-ink-soft">{labelOf(PHASE_LABEL, p.phase)}</td>
+                  <td className="px-4 py-3">
+                    <ProjectStatusSelect
+                      projectId={p.id}
+                      status={p.status}
+                      canEdit={canWriteProject(user.role, user.id, p)}
+                    />
+                  </td>
                   <td className="px-4 py-3">
                     <Pill tone={ragTone(p.ragStatus)} dot>
                       {p.ragStatus}
