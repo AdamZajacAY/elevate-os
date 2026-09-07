@@ -10,6 +10,7 @@ import { ProjectChecklist } from "@/components/ProjectChecklist";
 import { EditProjectButton } from "@/components/projects/EditProjectButton";
 import { Milestones } from "@/components/projects/Milestones";
 import { Risks } from "@/components/projects/Risks";
+import { ProjectStages } from "@/components/projects/ProjectStages";
 import { MeetingNotes } from "@/components/projects/MeetingNotes";
 import { StatusReports } from "@/components/projects/StatusReports";
 import {
@@ -338,42 +339,18 @@ export default async function ProjectDetailPage({
         />
       </div>
 
-      <Card>
-        <CardHeader
-          title="Harmonogram projektu"
-          subtitle="Etapy na osi czasu"
-          action={
-            <Link href="/gantt" className="text-[12.5px] font-semibold text-accent">
-              Widok wieloprojektowy →
-            </Link>
-          }
-        />
-        <div className="p-3">
-          {project.stages.length === 0 ? (
-            <EmptyState title="Brak etapów harmonogramu" />
-          ) : (
-            <ul className="space-y-1">
-              {project.stages.map((stage) => (
-                <li
-                  key={stage.id}
-                  className="flex items-center gap-3 rounded-xl px-2.5 py-2 hover:bg-surface-2"
-                >
-                  <span className="min-w-0 flex-1 truncate text-[13.5px] text-ink">
-                    {stage.name}
-                  </span>
-                  <Pill tone="neutral">{labelOf(PHASE_LABEL, stage.phase)}</Pill>
-                  <span className="shrink-0 font-mono text-[11px] text-muted">
-                    {formatDate(stage.startDate)} → {formatDate(stage.endDate)}
-                  </span>
-                  <span className="w-[42px] shrink-0 text-right font-mono text-[11px] text-accent">
-                    {stage.progress}%
-                  </span>
-                </li>
-              ))}
-            </ul>
-          )}
-        </div>
-      </Card>
+      <ProjectStages
+        projectId={project.id}
+        canEdit={mayEdit}
+        stages={project.stages.map((st) => ({
+          id: st.id,
+          name: st.name,
+          phase: st.phase,
+          startDate: st.startDate.toISOString(),
+          endDate: st.endDate.toISOString(),
+          progress: st.progress,
+        }))}
+      />
     </div>
   );
 }
