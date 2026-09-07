@@ -1,6 +1,10 @@
 # Audyt funkcjonalny ELEVATE OS
 
-Stan na 07.09.2026. Metoda: zmapowanie operacji dostępnych w API względem tych,
+> **Status: etapy 1–5 wdrożone** (07.09.2026). Wszystkie braki z sekcji A i C
+> zostały domknięte. Pozostają pozycje z sekcji B — funkcje Jiry odłożone
+> do decyzji po zebraniu opinii z użycia.
+
+Stan wyjściowy na 07.09.2026. Metoda: zmapowanie operacji dostępnych w API względem tych,
 które da się wywołać z interfejsu, plus porównanie z zakresem funkcji Jiry.
 
 **Wynik liczbowy:** 38 operacji zapisu istnieje w API, ale nie ma jak ich użyć
@@ -78,21 +82,21 @@ doradcze, nie prowadzić scrum. Nie proponuję ich dodawać bez wyraźnej potrze
 
 ## D. Proponowana kolejność
 
-**Etap 1 — odblokowanie prowadzenia projektu**
+**Etap 1 — odblokowanie prowadzenia projektu** ✅
 A1–A4 (edycja i zamknięcie projektu, opiekun, faza), A9–A10 (edycja i usunięcie
 zadania). Wyłącznie interfejs, API gotowe.
 
-**Etap 2 — to, co zasila RAG**
+**Etap 2 — to, co zasila RAG** ✅
 A5 i A6 — trasy i ekrany dla kamieni milowych i ryzyk. Bez nich status zdrowia
 projektu liczy się z niepełnych danych.
 
-**Etap 3 — harmonogram**
+**Etap 3 — harmonogram** ✅
 A7 — dodawanie i edycja etapów, żeby Gantt miał z czego rysować.
 
-**Etap 4 — zespół projektowy**
+**Etap 4 — zespół projektowy** ✅
 A8 — zmiana modelu danych plus ekran. Jedyna pozycja wymagająca migracji.
 
-**Etap 5 — reszta CRUD**
+**Etap 5 — reszta CRUD** ✅
 Sekcja C.
 
 **Osobno, po zebraniu opinii z użycia:** drag & drop, podzadania, załączniki,
