@@ -121,6 +121,20 @@ function ContactDialog({
   const isEdit = !!contact;
   const [error, setError] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
+  const [confirmDelete, setConfirmDelete] = useState(false);
+
+  async function remove() {
+    if (!contact) return;
+    setPending(true);
+    const res = await fetch(`/api/contacts/${contact.id}`, { method: "DELETE" });
+    if (!res.ok) {
+      setError(await readError(res, "Nie udało się usunąć kontaktu."));
+      setPending(false);
+      setConfirmDelete(false);
+      return;
+    }
+    onSaved();
+  }
 
   async function onSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -211,7 +225,7 @@ function ContactDialog({
           </p>
         )}
 
-        <div className="flex gap-3 pt-1">
+        <div className="flex flex-wrap gap-3 pt-1">
           <button
             type="submit"
             disabled={pending}
@@ -226,6 +240,27 @@ function ContactDialog({
           >
             Anuluj
           </button>
+          {isEdit && (
+            <span className="ml-auto">
+              {confirmDelete ? (
+                <button
+                  type="button"
+                  onClick={remove}
+                  className="rounded-lg bg-crit px-4 py-2.5 text-[13px] font-bold text-white hover:opacity-90"
+                >
+                  Potwierdzam
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => setConfirmDelete(true)}
+                  className="rounded-lg px-4 py-2.5 text-[13px] font-semibold text-muted hover:text-crit"
+                >
+                  Usuń…
+                </button>
+              )}
+            </span>
+          )}
         </div>
       </form>
     </Dialog>

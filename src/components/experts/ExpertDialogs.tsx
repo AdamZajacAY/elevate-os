@@ -11,17 +11,41 @@ const AVAILABILITY = [
   ["NIEDOSTEPNY", "Niedostępny"],
 ] as const;
 
-export function NewExpertDialog({
+/**
+ * Okno eksperta — jedno dla dodawania i edycji. Tryb wynika z obecności `expert`.
+ * Ekspert z historią przypisań nie jest usuwany, tylko dezaktywowany: inaczej
+ * rentowność zamkniętych projektów straciłaby koszt podwykonawcy.
+ */
+export function ExpertDialog({
+  expert,
   showMoney,
   onClose,
-  onCreated,
+  onSaved,
 }: {
+  expert?: ExpertRow;
   showMoney: boolean;
   onClose: () => void;
-  onCreated: () => void;
+  onSaved: () => void;
 }) {
+  const isEdit = !!expert;
   const [error, setError] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
+
+  async function toggleActive() {
+    if (!expert) return;
+    setPending(true);
+    const res = await fetch(`/api/experts/${expert.id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ isActive: !expert.isActive }),
+    });
+    if (!res.ok) {
+      setError(await readError(res, "Nie udało się zmienić statusu."));
+      setPending(false);
+      return;
+    }
+    onSaved();
+  }
 
   async function onSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -33,8 +57,8 @@ export function NewExpertDialog({
     const rate = text("hourlyRate");
     const rating = text("rating");
 
-    const res = await fetch("/api/experts", {
-      method: "POST",
+    const res = await fetch(isEdit ? `/api/experts/${expert.id}` : "/api/experts", {
+      method: isEdit ? "PATCH" : "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         fullName: text("fullName"),
@@ -54,28 +78,35 @@ export function NewExpertDialog({
       setPending(false);
       return;
     }
-    onCreated();
+    onSaved();
   }
 
   return (
-    <Dialog title="Nowy ekspert zewnętrzny" onClose={onClose}>
+    <Dialog
+      title={isEdit ? `Edycja: ${expert.fullName}` : "Nowy ekspert zewnętrzny"}
+      onClose={onClose}
+    >
       <form onSubmit={onSubmit} className="mt-5 space-y-4">
         <div className="grid gap-4 sm:grid-cols-2">
           <label className="block">
             <span className={dialogLabel}>Imię i nazwisko</span>
-            <input name="fullName" required minLength={3} className={dialogField} />
+            <input name="fullName" required minLength={3} defaultValue={expert?.fullName ?? ""} className={dialogField} />
           </label>
           <label className="block">
             <span className={dialogLabel}>Specjalizacja</span>
-            <input name="specialty" required minLength={2} className={dialogField} />
+            <input name="specialty" required minLength={2} defaultValue={expert?.specialty ?? ""} className={dialogField} />
           </label>
           <label className="block">
             <span className={dialogLabel}>Firma</span>
-            <input name="company" className={dialogField} />
+            <input name="company" defaultValue={expert?.company ?? ""} className={dialogField} />
           </label>
           <label className="block">
             <span className={dialogLabel}>Dostępność</span>
-            <select name="availability" className={dialogField} defaultValue="DOSTEPNY">
+            <select
+              name="availability"
+              className={dialogField}
+              defaultValue={expert?.availability ?? "DOSTEPNY"}
+            >
               {AVAILABILITY.map(([value, label]) => (
                 <option key={value} value={value}>
                   {label}
@@ -85,21 +116,21 @@ export function NewExpertDialog({
           </label>
           <label className="block">
             <span className={dialogLabel}>E-mail</span>
-            <input type="email" name="email" className={dialogField} />
+            <input type="email" name="email" defaultValue={expert?.email ?? ""} className={dialogField} />
           </label>
           <label className="block">
             <span className={dialogLabel}>Telefon</span>
-            <input name="phone" className={dialogField} />
+            <input name="phone" defaultValue={expert?.phone ?? ""} className={dialogField} />
           </label>
           {showMoney && (
             <label className="block">
               <span className={dialogLabel}>Stawka godzinowa (PLN)</span>
-              <input name="hourlyRate" inputMode="decimal" className={dialogField} />
+              <input name="hourlyRate" inputMode="decimal" defaultValue={expert?.hourlyRate ?? ""} className={dialogField} />
             </label>
           )}
           <label className="block">
             <span className={dialogLabel}>Ocena współpracy (1–5)</span>
-            <input name="rating" type="number" min={1} max={5} className={dialogField} />
+            <input name="rating" type="number" min={1} max={5} defaultValue={expert?.rating ?? ""} className={dialogField} />
           </label>
         </div>
 
@@ -114,7 +145,23 @@ export function NewExpertDialog({
           </p>
         )}
 
-        <DialogActions pending={pending} submitLabel="Dodaj eksperta" onClose={onClose} />
+        <div className="flex flex-wrap items-center gap-3 pt-1">
+          <DialogActions
+            pending={pending}
+            submitLabel={isEdit ? "Zapisz zmiany" : "Dodaj eksperta"}
+            onClose={onClose}
+          />
+          {isEdit && (
+            <button
+              type="button"
+              onClick={toggleActive}
+              disabled={pending}
+              className="ml-auto rounded-lg px-4 py-2.5 text-[13px] font-semibold text-muted hover:text-crit"
+            >
+              {expert.isActive ? "Dezaktywuj" : "Aktywuj ponownie"}
+            </button>
+          )}
+        </div>
       </form>
     </Dialog>
   );

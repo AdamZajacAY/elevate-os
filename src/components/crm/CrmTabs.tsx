@@ -13,6 +13,7 @@ export function CrmTabs({
   owners,
   initialTab,
   canConvert,
+  canDelete,
   showMoney,
 }: {
   clients: ClientRow[];
@@ -20,6 +21,7 @@ export function CrmTabs({
   owners: { id: string; fullName: string }[];
   initialTab: Tab;
   canConvert: boolean;
+  canDelete: boolean;
   showMoney: boolean;
 }) {
   const router = useRouter();
@@ -73,6 +75,7 @@ export function CrmTabs({
           clients={clients.map((c) => ({ id: c.id, name: c.name }))}
           owners={owners}
           canConvert={canConvert}
+          canDelete={canDelete}
           showMoney={showMoney}
         />
       )}

@@ -39,6 +39,7 @@ export default async function CrmPage({
     <CrmTabs
       initialTab={zakladka === "pipeline" ? "pipeline" : "klienci"}
       canConvert={user.role !== "CONSULTANT"}
+      canDelete={user.role === "ADMIN"}
       showMoney={showMoney}
       owners={owners}
       clients={clients.map((c) => ({

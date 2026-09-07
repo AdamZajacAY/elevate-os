@@ -47,6 +47,7 @@ export function MeetingNotes({
 }) {
   const router = useRouter();
   const [newOpen, setNewOpen] = useState(false);
+  const [editing, setEditing] = useState<Note | null>(null);
   const [converting, setConverting] = useState<NoteItem | null>(null);
 
   const openItems = notes.flatMap((n) => n.items).filter((i) => !i.taskId).length;
@@ -77,9 +78,13 @@ export function MeetingNotes({
             {notes.map((note) => (
               <li key={note.id} className="rounded-xl border border-border bg-surface-2 px-3.5 py-3">
                 <div className="flex items-start justify-between gap-3">
-                  <p className="min-w-0 flex-1 text-[13.5px] font-semibold text-ink">
+                  <button
+                    onClick={() => setEditing(note)}
+                    title="Edytuj notatkę"
+                    className="min-w-0 flex-1 text-left text-[13.5px] font-semibold text-ink hover:text-accent"
+                  >
                     {note.title}
-                  </p>
+                  </button>
                   <span className="shrink-0 font-mono text-[10.5px] text-muted">
                     {formatDate(note.meetingDate)}
                   </span>
@@ -132,6 +137,17 @@ export function MeetingNotes({
           onClose={() => setNewOpen(false)}
           onCreated={() => {
             setNewOpen(false);
+            router.refresh();
+          }}
+        />
+      )}
+
+      {editing && (
+        <EditNoteDialog
+          note={editing}
+          onClose={() => setEditing(null)}
+          onSaved={() => {
+            setEditing(null);
             router.refresh();
           }}
         />
@@ -388,6 +404,165 @@ function ConvertItemDialog({
             Anuluj
           </button>
         </div>
+      </form>
+    </Dialog>
+  );
+}
+
+/**
+ * Edycja notatki. Punkty nie są tu edytowalne: część z nich mogła już zostać
+ * zamieniona na zadania, więc zmiana treści punktu rozjechałaby się z tytułem
+ * zadania, które z niego powstało. Notatka jest zapisem tego, co ustalono.
+ */
+function EditNoteDialog({
+  note,
+  onClose,
+  onSaved,
+}: {
+  note: Note;
+  onClose: () => void;
+  onSaved: () => void;
+}) {
+  const [error, setError] = useState<string | null>(null);
+  const [pending, setPending] = useState(false);
+  const [confirmDelete, setConfirmDelete] = useState(false);
+
+  const converted = note.items.filter((i) => i.taskId).length;
+
+  async function save(e: React.FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    setPending(true);
+    setError(null);
+
+    const form = new FormData(e.currentTarget);
+    const text = (k: string) => String(form.get(k) ?? "").trim();
+
+    const res = await fetch(`/api/notes/${note.id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        title: text("title"),
+        meetingDate: text("meetingDate"),
+        content: text("content"),
+        attendees: text("attendees"),
+      }),
+    });
+
+    if (!res.ok) {
+      setError(await readError(res, "Nie udało się zapisać notatki."));
+      setPending(false);
+      return;
+    }
+    onSaved();
+  }
+
+  async function remove() {
+    setPending(true);
+    const res = await fetch(`/api/notes/${note.id}`, { method: "DELETE" });
+    if (!res.ok) {
+      setError(await readError(res, "Nie udało się usunąć notatki."));
+      setPending(false);
+      setConfirmDelete(false);
+      return;
+    }
+    onSaved();
+  }
+
+  return (
+    <Dialog title={`Edycja: ${note.title}`} onClose={onClose}>
+      <form onSubmit={save} className="mt-5 space-y-4">
+        <div className="grid gap-4 sm:grid-cols-2">
+          <label className="block">
+            <span className={dialogLabel}>Tytuł</span>
+            <input
+              name="title"
+              required
+              minLength={3}
+              defaultValue={note.title}
+              className={dialogField}
+            />
+          </label>
+          <label className="block">
+            <span className={dialogLabel}>Data spotkania</span>
+            <DateField
+              name="meetingDate"
+              required
+              defaultValue={note.meetingDate.slice(0, 10)}
+              className={dialogField}
+            />
+          </label>
+        </div>
+
+        <label className="block">
+          <span className={dialogLabel}>Uczestnicy</span>
+          <input name="attendees" defaultValue={note.attendees ?? ""} className={dialogField} />
+        </label>
+
+        <label className="block">
+          <span className={dialogLabel}>Przebieg</span>
+          <textarea
+            name="content"
+            rows={4}
+            defaultValue={note.content ?? ""}
+            className={dialogField}
+          />
+        </label>
+
+        <p className="text-[12px] text-muted">
+          Punktów nie da się tu zmienić — {converted > 0
+            ? `${converted} z nich ma już utworzone zadania`
+            : "są zapisem tego, co ustalono"}
+          . Zadania edytujesz na ich własnych kartach.
+        </p>
+
+        {error && (
+          <p className="rounded-lg border border-crit bg-crit-soft px-3 py-2 text-[13px] text-crit">
+            {error}
+          </p>
+        )}
+
+        <div className="flex flex-wrap gap-3 pt-1">
+          <button
+            type="submit"
+            disabled={pending}
+            className="rounded-lg bg-accent-deep px-5 py-2.5 text-[14px] font-bold text-white hover:opacity-90 disabled:opacity-50"
+          >
+            {pending ? "Zapisywanie…" : "Zapisz zmiany"}
+          </button>
+          <button
+            type="button"
+            onClick={onClose}
+            className="rounded-lg border border-border px-5 py-2.5 text-[14px] font-semibold text-ink-soft hover:bg-surface-2"
+          >
+            Anuluj
+          </button>
+          <span className="ml-auto">
+            {confirmDelete ? (
+              <button
+                type="button"
+                onClick={remove}
+                className="rounded-lg bg-crit px-4 py-2.5 text-[13px] font-bold text-white hover:opacity-90"
+              >
+                Potwierdzam
+              </button>
+            ) : (
+              <button
+                type="button"
+                onClick={() => setConfirmDelete(true)}
+                className="rounded-lg px-4 py-2.5 text-[13px] font-semibold text-muted hover:text-crit"
+              >
+                Usuń notatkę…
+              </button>
+            )}
+          </span>
+        </div>
+
+        {confirmDelete && converted > 0 && (
+          <p className="rounded-lg border border-warn bg-warn-soft px-3 py-2 text-[12.5px] text-warn">
+            Zadania utworzone z punktów tej notatki ({converted}) zostaną — znika sam zapis
+            spotkania.
+          </p>
+        )}
       </form>
     </Dialog>
   );

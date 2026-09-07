@@ -87,6 +87,30 @@ export function AdminClient({
   const [newUserOpen, setNewUserOpen] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  /**
+   * Zapis etykiety słownika. Trasa jest upsertem po parze (kind, value), więc
+   * wysyłamy komplet — zmieniamy tylko to, co użytkownik faktycznie ruszył.
+   */
+  async function saveLabel(label: Label, patch: { label?: string; color?: string }) {
+    setError(null);
+    const res = await fetch("/api/admin/labels", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        kind: label.kind,
+        value: label.value,
+        label: patch.label ?? label.label,
+        color: patch.color ?? label.color,
+        isActive: label.isActive,
+      }),
+    });
+    if (!res.ok) {
+      setError(await readError(res, "Nie udało się zapisać etykiety."));
+      return;
+    }
+    router.refresh();
+  }
+
   async function patchUser(id: string, patch: Record<string, unknown>) {
     setError(null);
     const res = await fetch(`/api/admin/users/${id}`, {
@@ -233,7 +257,8 @@ export function AdminClient({
         <div className="space-y-4">
           <p className="text-[13px] text-muted">
             Etykiety i kolory wartości słownikowych. Zestaw wartości pochodzi z modelu domeny —
-            tutaj zmieniasz to, jak są nazywane i oznaczane w interfejsie.
+            tutaj zmieniasz to, jak są nazywane i oznaczane w interfejsie. Kliknij nazwę
+            albo kolor, żeby poprawić; zapis następuje po opuszczeniu pola.
           </p>
           {[...new Set(labels.map((l) => l.kind))].map((kind) => (
             <Card key={kind}>
@@ -243,13 +268,24 @@ export function AdminClient({
                   .filter((l) => l.kind === kind)
                   .map((l) => (
                     <li key={l.id} className="flex items-center gap-3 px-5 py-2.5">
-                      <span
-                        style={{ background: l.color }}
-                        className="h-3.5 w-3.5 shrink-0 rounded-full border border-border"
+                      <input
+                        type="color"
+                        defaultValue={l.color}
+                        onBlur={(e) => saveLabel(l, { color: e.target.value })}
+                        aria-label={`Kolor etykiety ${l.label}`}
+                        className="h-6 w-8 cursor-pointer rounded border border-border bg-transparent"
                       />
-                      <span className="min-w-0 flex-1 text-[13px] text-ink">{l.label}</span>
-                      <span className="font-mono text-[10.5px] text-muted">{l.value}</span>
-                      <span className="font-mono text-[10.5px] text-muted">{l.color}</span>
+                      <input
+                        defaultValue={l.label}
+                        onBlur={(e) =>
+                          e.target.value.trim() &&
+                          e.target.value !== l.label &&
+                          saveLabel(l, { label: e.target.value.trim() })
+                        }
+                        aria-label={`Nazwa etykiety ${l.value}`}
+                        className="min-w-0 flex-1 rounded-lg border border-transparent bg-transparent px-2 py-1 text-[13px] text-ink hover:border-border focus:border-accent focus:outline-none"
+                      />
+                      <span className="shrink-0 font-mono text-[10.5px] text-muted">{l.value}</span>
                     </li>
                   ))}
               </ul>

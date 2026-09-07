@@ -8,7 +8,7 @@ import { Pill } from "@/components/ui/Pill";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { RedactedValue } from "@/components/ui/Card";
 import { formatMoney } from "@/lib/format";
-import { NewExpertDialog, AssignExpertDialog } from "@/components/experts/ExpertDialogs";
+import { ExpertDialog, AssignExpertDialog } from "@/components/experts/ExpertDialogs";
 
 export type ExpertRow = {
   id: string;
@@ -58,6 +58,7 @@ export function ExpertsClient({
 }) {
   const router = useRouter();
   const [newOpen, setNewOpen] = useState(false);
+  const [editing, setEditing] = useState<ExpertRow | null>(null);
   const [assigning, setAssigning] = useState<ExpertRow | null>(null);
 
   const active = experts.filter((e) => e.isActive);
@@ -73,6 +74,7 @@ export function ExpertsClient({
           </h1>
           <p className="mt-1 text-[13.5px] text-ink-soft">
             {active.length} aktywnych specjalistów zewnętrznych · {available} dostępnych od zaraz
+          {canManage ? " — kliknij nazwisko, żeby edytować" : ""}
           </p>
         </div>
         {canManage && (
@@ -97,9 +99,15 @@ export function ExpertsClient({
               <div className="p-5">
                 <div className="flex items-start justify-between gap-3">
                   <div className="min-w-0">
-                    <p className="font-display text-[15.5px] font-bold text-ink">
+                    <button
+                      onClick={() => canManage && setEditing(expert)}
+                      disabled={!canManage}
+                      className={`text-left font-display text-[15.5px] font-bold text-ink ${
+                        canManage ? "hover:text-accent" : ""
+                      }`}
+                    >
                       {expert.fullName}
-                    </p>
+                    </button>
                     <p className="mt-0.5 text-[12.5px] text-accent">{expert.specialty}</p>
                     {expert.company && (
                       <p className="text-[11.5px] text-muted">{expert.company}</p>
@@ -176,11 +184,23 @@ export function ExpertsClient({
       )}
 
       {newOpen && (
-        <NewExpertDialog
+        <ExpertDialog
           showMoney={showMoney}
           onClose={() => setNewOpen(false)}
-          onCreated={() => {
+          onSaved={() => {
             setNewOpen(false);
+            router.refresh();
+          }}
+        />
+      )}
+
+      {editing && (
+        <ExpertDialog
+          expert={editing}
+          showMoney={showMoney}
+          onClose={() => setEditing(null)}
+          onSaved={() => {
+            setEditing(null);
             router.refresh();
           }}
         />

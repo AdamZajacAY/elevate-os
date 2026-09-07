@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Pill } from "@/components/ui/Pill";
+import { readError } from "@/components/crm/Dialog";
 import {
   OPPORTUNITY_STAGES,
   OPPORTUNITY_STAGE_LABEL,
@@ -44,12 +45,14 @@ export function CrmPipeline({
   clients,
   owners,
   canConvert,
+  canDelete,
   showMoney,
 }: {
   opportunities: OpportunityRow[];
   clients: { id: string; name: string }[];
   owners: { id: string; fullName: string }[];
   canConvert: boolean;
+  canDelete: boolean;
   showMoney: boolean;
 }) {
   const router = useRouter();
@@ -64,6 +67,18 @@ export function CrmPipeline({
   const [error, setError] = useState<string | null>(null);
 
   /** Przesuniecie szansy na kolejny etap — optymistycznie, z cofnieciem przy odmowie. */
+  /** Usunięcie szansy — tylko Administrator, tak samo jak w API. */
+  async function removeOpportunity(id: string) {
+    setError(null);
+    const res = await fetch(`/api/opportunities/${id}`, { method: "DELETE" });
+    if (!res.ok) {
+      setError(await readError(res, "Nie udało się usunąć szansy."));
+      return;
+    }
+    setRows((prev) => prev.filter((o) => o.id !== id));
+    router.refresh();
+  }
+
   async function moveStage(id: string, stage: OpportunityStage) {
     const before = rows;
     setRows((prev) => prev.map((o) => (o.id === id ? { ...o, stage } : o)));
@@ -139,12 +154,23 @@ export function CrmPipeline({
                     key={o.id}
                     className="rounded-xl border border-border bg-surface p-3 shadow-card"
                   >
-                    <Link
-                      href={`/crm/clients/${o.clientId}`}
-                      className="font-mono text-[10px] text-accent hover:underline"
-                    >
-                      {o.clientName}
-                    </Link>
+                    <div className="flex items-center justify-between gap-2">
+                      <Link
+                        href={`/crm/clients/${o.clientId}`}
+                        className="font-mono text-[10px] text-accent hover:underline"
+                      >
+                        {o.clientName}
+                      </Link>
+                      {canDelete && (
+                        <button
+                          onClick={() => removeOpportunity(o.id)}
+                          title="Usuń szansę"
+                          className="text-[10px] text-muted hover:text-crit"
+                        >
+                          usuń
+                        </button>
+                      )}
+                    </div>
                     <p className="mt-1 text-[13px] font-medium leading-snug text-ink">{o.title}</p>
 
                     <div className="mt-2 flex flex-wrap items-center gap-1.5">
