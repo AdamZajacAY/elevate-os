@@ -66,18 +66,26 @@ services:
       - key: CRON_SECRET
         generateValue: true
 
-      # ── Uzupełnij w panelu Render ──────────────────────────────────────────
-      - key: GOOGLE_WORKSPACE_DOMAIN
-        sync: false
-      - key: AUTH_GOOGLE_ID
-        sync: false
-      - key: AUTH_GOOGLE_SECRET
-        sync: false
-      # Opcjonalne — poczta transakcyjna
-      - key: RESEND_API_KEY
-        sync: false
-      - key: EMAIL_FROM
-        sync: false
+      # ── Opcjonalne — dodaj w panelu Render, gdy będą potrzebne ─────────────
+      #
+      # Poczta transakcyjna. Bez niej powiadomienia działają, tylko zostają
+      # w aplikacji zamiast iść mailem.
+      # - key: RESEND_API_KEY
+      #   sync: false
+      # - key: EMAIL_FROM
+      #   sync: false
+      #
+      # Logowanie Google i synchronizacja z Kalendarzem. Wymaga konta Google
+      # Workspace (płatne per użytkownik). Kod jest gotowy i uśpiony — bez tych
+      # zmiennych przycisk logowania się nie pokazuje, a panel Kalendarza mówi,
+      # że wdrożenie nie ma kluczy. Kalendarz działa też bez Google: feed iCal
+      # (zakładka Platforma) subskrybujesz w dowolnym kalendarzu za darmo.
+      # - key: GOOGLE_WORKSPACE_DOMAIN
+      #   sync: false
+      # - key: AUTH_GOOGLE_ID
+      #   sync: false
+      # - key: AUTH_GOOGLE_SECRET
+      #   sync: false
 
 # Harmonogram: skan powiadomień i sprzątanie retencyjne.
 # Wymaga planu płatnego (cron jobs nie są dostępne na "free").

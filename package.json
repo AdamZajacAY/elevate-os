@@ -17,7 +17,8 @@
     "db:reset": "node ./node_modules/prisma/build/index.js db push --force-reset && npm run db:seed",
     "backup": "node ./node_modules/tsx/dist/cli.mjs scripts/startup-backup.ts",
     "db:migrate": "node ./node_modules/prisma/build/index.js migrate dev",
-    "db:deploy": "node ./node_modules/prisma/build/index.js migrate deploy"
+    "db:deploy": "node ./node_modules/prisma/build/index.js migrate deploy",
+    "db:bootstrap": "node ./node_modules/tsx/dist/cli.mjs scripts/bootstrap-admin.ts"
   },
   "dependencies": {
     "@prisma/client": "^7.10.0",

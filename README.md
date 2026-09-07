@@ -45,9 +45,20 @@ Konfiguracja jest w [`render.yaml`](render.yaml) — blueprint tworzy usługę w
 ustawia `AUTH_URL` na publiczny adres usługi. Przy każdym wdrożeniu `npm run start` najpierw
 dokłada migracje (`prisma migrate deploy`), potem podnosi serwer.
 
-**Co musisz uzupełnić w panelu Render** (Environment) — te wartości celowo nie leżą w repo:
-`GOOGLE_WORKSPACE_DOMAIN`, `AUTH_GOOGLE_ID`, `AUTH_GOOGLE_SECRET`, opcjonalnie
-`RESEND_API_KEY` i `EMAIL_FROM`.
+**Co musisz zrobić sam:** utworzyć pierwsze konto administratora — świeża baza jest pusta,
+a logowanie hasłem wymaga istniejącego konta. W Render → **Shell**:
+
+```bash
+ADMIN_EMAIL=adam@adviseyou.pl ADMIN_PASSWORD='dlugie-haslo-min-10-znakow' \
+  ADMIN_NAME='Adam Zając' npm run db:bootstrap
+```
+
+Skrypt jest idempotentny — na istniejącym koncie podnosi rolę do Administratora i ustawia
+nowe hasło, zamiast tworzyć duplikat. Po zalogowaniu zmień hasło i zakładaj kolejne konta
+z panelu administracyjnego.
+
+Zmiennych `AUTH_SECRET`, `CRON_SECRET`, `DATABASE_URL` i `AUTH_URL` nie ustawiasz —
+Render robi to sam (patrz `render.yaml`).
 
 ### Ograniczenia planu darmowego
 
@@ -285,11 +296,17 @@ ekranie logowania, zamiast wywalać się przy próbie użycia.
   jeden spójny identyfikator niezależnie od sposobu logowania.
 - Reszta profilu Google jest odrzucana (spec 09): bierzemy e-mail i imię.
 
-**Konfiguracja** — jedna para kluczy obsługuje logowanie i Kalendarz. Pełna instrukcja krok po
-kroku jest w [`.env.example`](.env.example); w skrócie: w Google Cloud Console włącz
-*Google Calendar API*, utwórz OAuth client ID typu *Web application* i dodaj **oba** adresy
-powrotne — `/api/auth/callback/google` (logowanie) oraz `/api/google/calendar/callback`
-(Kalendarz).
+**Stan: kod gotowy, integracja wyłączona.** Google Workspace to koszt per użytkownik, więc
+na tym wdrożeniu nie jest włączona. Bez `AUTH_GOOGLE_ID` i `AUTH_GOOGLE_SECRET` przycisk
+logowania się nie pokazuje, a panel Kalendarza mówi wprost, że wdrożenie nie ma kluczy —
+nic się nie psuje. Włączenie to uzupełnienie trzech zmiennych środowiskowych, bez zmian w kodzie.
+
+**Kalendarz działa bez Google.** Feed iCal (Administracja → Platforma) subskrybujesz
+w Kalendarzu Google, Outlooku albo Apple Calendar — za darmo, także na koncie prywatnym.
+Różnica wobec integracji przez API: feed jest tylko do odczytu i odświeża się co kilkanaście
+minut, zamiast wypychać wydarzenia natychmiast do osobnego kalendarza.
+
+Pełna instrukcja konfiguracji, gdyby kiedyś była potrzebna, jest w [`.env.example`](.env.example).
 
 ### Bezpieczeństwo i RODO (spec 10)
 
