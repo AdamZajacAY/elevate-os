@@ -2,11 +2,12 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { requireModule } from "@/server/session";
-import { canReadAllProjects } from "@/lib/rbac";
+import { canReadAllProjects, isAdmin } from "@/lib/rbac";
 import { Card, CardHeader, StatTile } from "@/components/ui/Card";
 import { Pill, priorityTone } from "@/components/ui/Pill";
 import { TaskComments } from "@/components/tasks/TaskComments";
 import { TimeLogger } from "@/components/tasks/TimeLogger";
+import { EditTaskButton } from "@/components/tasks/EditTaskButton";
 import {
   TASK_STATUS_LABEL,
   PRIORITY_LABEL,
@@ -85,12 +86,29 @@ export default async function TaskDetailPage({ params }: { params: Promise<{ id:
             {task.stage ? ` · etap: ${task.stage.name}` : ""}
           </p>
         </div>
-        <Link
-          href="/tasks"
-          className="rounded-lg border border-border px-3.5 py-1.5 text-[13px] font-semibold text-ink-soft hover:bg-surface-2"
-        >
-          ← Zadania
-        </Link>
+        <div className="flex shrink-0 items-center gap-2.5">
+          <EditTaskButton
+            assignees={teamMembers}
+            canDelete={isAdmin(user.role) || task.project.ownerId === user.id}
+            task={{
+              id: task.id,
+              code: task.code,
+              title: task.title,
+              description: task.description,
+              status: task.status,
+              priority: task.priority,
+              assigneeId: task.assigneeId,
+              estimatedHours: task.estimatedHours,
+              dueDate: task.dueDate?.toISOString() ?? null,
+            }}
+          />
+          <Link
+            href="/tasks"
+            className="rounded-lg border border-border px-3.5 py-1.5 text-[13px] font-semibold text-ink-soft hover:bg-surface-2"
+          >
+            ← Zadania
+          </Link>
+        </div>
       </header>
 
       <div className="grid grid-cols-2 gap-3.5 lg:grid-cols-4">

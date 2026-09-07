@@ -2,11 +2,12 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { requireModule } from "@/server/session";
-import { canReadAllProjects, canSeeFinancials, canWriteProject } from "@/lib/rbac";
+import { canReadAllProjects, canSeeFinancials, canWriteProject, isAdmin } from "@/lib/rbac";
 import { Card, CardHeader, StatTile, RedactedValue } from "@/components/ui/Card";
 import { Pill, ragTone, priorityTone } from "@/components/ui/Pill";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { ProjectChecklist } from "@/components/ProjectChecklist";
+import { EditProjectButton } from "@/components/projects/EditProjectButton";
 import { MeetingNotes } from "@/components/projects/MeetingNotes";
 import { StatusReports } from "@/components/projects/StatusReports";
 import {
@@ -73,11 +74,16 @@ export default async function ProjectDetailPage({
 
   if (!project) notFound();
 
-  const teamMembers = await prisma.user.findMany({
-    where: { isActive: true },
-    select: { id: true, fullName: true },
-    orderBy: { fullName: "asc" },
-  });
+  const [teamMembers, allClients] = await Promise.all([
+    prisma.user.findMany({
+      where: { isActive: true },
+      select: { id: true, fullName: true },
+      orderBy: { fullName: "asc" },
+    }),
+    prisma.client.findMany({ select: { id: true, name: true }, orderBy: { name: "asc" } }),
+  ]);
+
+  const mayEdit = canWriteProject(user.role, user.id, project);
 
   const showMoney = canSeeFinancials(user.role);
   const doneTasks = project.tasks.filter((t) => t.status === "DONE").length;
@@ -108,12 +114,43 @@ export default async function ProjectDetailPage({
             {project.owner?.fullName ?? "nieprzypisany"}
           </p>
         </div>
-        <Link
-          href="/projects"
-          className="rounded-lg border border-border px-3.5 py-1.5 text-[13px] font-semibold text-ink-soft hover:bg-surface-2"
-        >
-          ← Projekty
-        </Link>
+        <div className="flex shrink-0 flex-wrap items-center gap-2.5">
+          {mayEdit && (
+            <EditProjectButton
+              canDelete={isAdmin(user.role)}
+              showFinancials={showMoney}
+              clients={allClients}
+              owners={teamMembers}
+              project={{
+                id: project.id,
+                name: project.name,
+                clientId: project.clientId,
+                serviceType: project.serviceType,
+                ownerId: project.ownerId,
+                phase: project.phase,
+                status: project.status,
+                description: project.description,
+                startDate: project.startDate?.toISOString() ?? null,
+                endDate: project.endDate?.toISOString() ?? null,
+                budget: project.budget,
+                contractValue: project.contractValue,
+                quotedValue: project.quotedValue,
+                billingModel: project.billingModel,
+                billingPeriod: project.billingPeriod,
+                recurringAmount: project.recurringAmount,
+                billingStartDate: project.billingStartDate?.toISOString() ?? null,
+                billingEndDate: project.billingEndDate?.toISOString() ?? null,
+                noticePeriodDays: project.noticePeriodDays,
+              }}
+            />
+          )}
+          <Link
+            href="/projects"
+            className="rounded-lg border border-border px-3.5 py-1.5 text-[13px] font-semibold text-ink-soft hover:bg-surface-2"
+          >
+            ← Projekty
+          </Link>
+        </div>
       </header>
 
       <div className="grid grid-cols-2 gap-3.5 lg:grid-cols-4">
