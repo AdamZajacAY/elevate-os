@@ -2,28 +2,17 @@ import { prisma } from "@/lib/prisma";
 import { withAuth, parseBody, ok, fail } from "@/server/api";
 import { projectUpdateSchema } from "@/server/validators/schemas";
 import { redact, redactProjectTree } from "@/lib/redact";
-import { canReadAllProjects, canWriteProject, isAdmin } from "@/lib/rbac";
+import { canWriteProject, isAdmin } from "@/lib/rbac";
+import { canViewProject } from "@/server/access";
 import { refreshRag } from "@/server/services/rag";
 import { audit } from "@/server/services/audit";
 
 type Ctx = { params: Promise<{ id: string }> };
 
-/** Czy uzytkownik widzi ten projekt — opiekun, wykonawca zadania albo pelny odczyt. */
-async function assertVisible(userId: string, role: string, projectId: string) {
-  if (canReadAllProjects(role as never)) return true;
-  const hit = await prisma.project.findFirst({
-    where: {
-      id: projectId,
-      OR: [{ ownerId: userId }, { tasks: { some: { assigneeId: userId } } }],
-    },
-    select: { id: true },
-  });
-  return !!hit;
-}
-
 export const GET = withAuth<Ctx>("projects", async (user, _req, ctx) => {
   const { id } = await ctx.params;
-  if (!(await assertVisible(user.id, user.role, id))) return fail(404, "Projekt nie istnieje");
+  // Widocznosc sprawdza wspolny helper — druga kopia reguly gubila czlonkow zespolu.
+  if (!(await canViewProject(user.id, user.role, id))) return fail(404, "Projekt nie istnieje");
 
   const project = await prisma.project.findUnique({
     where: { id },

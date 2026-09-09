@@ -59,10 +59,27 @@ const optionalMoney = z
 const optionalDate = z
   .union([z.string().min(1), z.date(), z.null()])
   .optional()
-  .transform((v) => (v === undefined ? undefined : v === null || v === "" ? null : new Date(v)));
+  .transform((v) => (v === undefined ? undefined : v === null || v === "" ? null : new Date(v)))
+  .refine((v) => v === undefined || v === null || isSaneDate(v), {
+    message: "Nieprawidlowa data",
+  });
 
-/** Data wymagana. */
-const requiredDate = z.union([z.string().min(1), z.date()]).transform((v) => new Date(v));
+/**
+ * Zakres akceptowanych dat. Bez gornej granicy wpis czasu z roku 2099 zapisywal
+ * sie bez slowa i na zawsze wypadal poza kazde okno raportowania.
+ */
+const MIN_DATE = new Date("2000-01-01");
+const MAX_DATE = new Date("2100-01-01");
+
+function isSaneDate(d: Date): boolean {
+  return !Number.isNaN(d.getTime()) && d >= MIN_DATE && d < MAX_DATE;
+}
+
+/** Data wymagana. Zly format konczy sie 422, nie 500 z Prismy. */
+const requiredDate = z
+  .union([z.string().min(1), z.date()])
+  .transform((v) => new Date(v))
+  .refine(isSaneDate, { message: "Nieprawidlowa data" });
 
 /**
  * Data opcjonalna, ale **nie** nullowalna — do pol, ktore w bazie sa wymagane.
@@ -71,7 +88,8 @@ const requiredDate = z.union([z.string().min(1), z.date()]).transform((v) => new
 const optionalRequiredDate = z
   .union([z.string().min(1), z.date()])
   .optional()
-  .transform((v) => (v === undefined ? undefined : new Date(v)));
+  .transform((v) => (v === undefined ? undefined : new Date(v)))
+  .refine((v) => v === undefined || isSaneDate(v), { message: "Nieprawidlowa data" });
 
 /** Odwolanie do rekordu: id albo jawne odpiecie przez null. */
 const optionalRef = z
@@ -210,7 +228,15 @@ export const timeLogCreateSchema = z.object({
   taskId: optionalRef,
   projectId: z.string().min(1),
   hours: z.number().positive("Liczba godzin musi byc dodatnia").max(24),
-  workDate: requiredDate,
+  /**
+   * Data pracy nie moze byc z przyszlosci — nie da sie zarejestrowac czasu,
+   * ktorego sie jeszcze nie przepracowalo. Ogolne granice dat sa za luzne:
+   * wpis z 2099 przechodzil i na zawsze wypadal poza kazde okno raportowania.
+   * Tolerancja jednego dnia obsluguje roznice stref czasowych.
+   */
+  workDate: requiredDate.refine((d) => d.getTime() <= Date.now() + 86_400_000, {
+    message: "Data pracy nie moze byc z przyszlosci",
+  }),
   note: optionalText,
 });
 

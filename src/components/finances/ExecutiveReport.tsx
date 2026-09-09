@@ -23,7 +23,7 @@ type Report = {
     phase: string;
     status: string;
     ragStatus: string;
-    contractValue: number | null;
+    revenue: number | null;
     totalCost: number;
     margin: number | null;
     marginPct: number | null;
@@ -57,7 +57,9 @@ export function ExecutiveReport({ onClose }: { onClose: () => void }) {
   function exportCsv() {
     if (!report) return;
     const rows = [
-      ["Kod", "Projekt", "Klient", "Faza", "Status", "RAG", "Godziny", "Koszt", "Wartość umowy", "Marża", "Marża %"],
+      // "Przychód", nie "Wartość umowy": dla abonamentu bezterminowego wartosc
+      // umowy jest pusta z definicji, wiec marza w wierszu nie dawala sie sprawdzic.
+      ["Kod", "Projekt", "Klient", "Faza", "Status", "RAG", "Godziny", "Koszt", "Przychód", "Marża", "Marża %"],
       ...report.projects.map((p) => [
         p.code,
         p.name,
@@ -67,7 +69,7 @@ export function ExecutiveReport({ onClose }: { onClose: () => void }) {
         p.ragStatus,
         String(p.hours),
         String(Math.round(p.totalCost)),
-        p.contractValue === null ? "" : String(p.contractValue),
+        p.revenue === null ? "" : String(Math.round(p.revenue)),
         p.margin === null ? "" : String(Math.round(p.margin)),
         p.marginPct === null ? "" : String(p.marginPct),
       ]),
@@ -201,7 +203,7 @@ export function ExecutiveReport({ onClose }: { onClose: () => void }) {
             </p>
           </Section>
 
-          <div className="flex flex-wrap gap-3 pt-1">
+          <div className="no-print flex flex-wrap gap-3 pt-1">
             <button
               onClick={exportCsv}
               className="rounded-lg bg-accent-deep px-5 py-2.5 text-[14px] font-bold text-white hover:opacity-90"

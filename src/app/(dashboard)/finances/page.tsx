@@ -1,34 +1,22 @@
 import { requireModule } from "@/server/session";
-import {
-  getProjectFinance,
-  getClientFinance,
-  getTeamLoad,
-  getTimeliness,
-  getPipelineValue,
-} from "@/server/services/finance";
+import { getFinanceDashboard } from "@/server/services/finance";
 import { FinancesClient } from "@/components/finances/FinancesClient";
 
 export const metadata = { title: "Finanse — ELEVATE OS" };
 export const dynamic = "force-dynamic";
 
 export default async function FinancesPage() {
-  await requireModule("finances");
-
-  const [projects, team, timeliness, pipeline] = await Promise.all([
-    getProjectFinance(),
-    getTeamLoad(),
-    getTimeliness(),
-    getPipelineValue(),
-  ]);
-  const clients = await getClientFinance(projects);
+  const user = await requireModule("finances");
+  const data = await getFinanceDashboard(user.role);
 
   return (
     <FinancesClient
-      projects={projects}
-      clients={clients}
-      team={team}
-      timeliness={timeliness}
-      pipeline={pipeline}
+      projects={data.projects}
+      clients={data.clients}
+      team={data.team}
+      timeliness={data.timeliness}
+      pipeline={data.pipeline}
+      totals={data.totals}
     />
   );
 }

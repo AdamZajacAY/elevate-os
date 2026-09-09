@@ -1,6 +1,7 @@
 import { prisma } from "@/lib/prisma";
 import { projectScopeWhere, canSeeFinancials } from "@/lib/rbac";
 import { redactMany } from "@/lib/redact";
+import { isOnTime, startOfDay } from "@/lib/format";
 import type { Role } from "@/lib/domain";
 
 /** Dane pulpitu — zawezone do zakresu roli, z finansami tylko dla uprawnionych. */
@@ -46,7 +47,9 @@ export async function getDashboardData(userId: string, role: Role) {
     prisma.milestone.findMany({
       where: {
         completedAt: null,
-        dueDate: { gte: now, lte: horizon },
+        // Od poczatku dnia, nie od biezacej godziny — inaczej kamien milowy
+        // z terminem na dzis znikal z pulpitu tego samego ranka.
+        dueDate: { gte: startOfDay(now), lte: horizon },
         project: scope,
       },
       select: {
@@ -96,6 +99,6 @@ export async function getOnTimeRatio(userId: string, role: Role): Promise<number
     select: { dueDate: true, completedAt: true },
   });
   if (done.length === 0) return null;
-  const onTime = done.filter((t) => t.completedAt! <= t.dueDate!).length;
+  const onTime = done.filter((t) => isOnTime(t.completedAt!, t.dueDate!)).length;
   return Math.round((onTime / done.length) * 100);
 }

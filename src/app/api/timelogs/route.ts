@@ -3,6 +3,7 @@ import { withAuth, parseBody, ok, fail } from "@/server/api";
 import { timeLogCreateSchema } from "@/server/validators/schemas";
 import { audit } from "@/server/services/audit";
 import { canManageTasksIn } from "@/server/access";
+import { redact } from "@/lib/redact";
 
 /**
  * Rejestracja godziny na zadaniu — jedyne zrodlo kosztu rzeczywistego,
@@ -54,6 +55,8 @@ export const POST = withAuth("tasks", async (user, req) => {
   });
 
   await audit(user.id, "CREATE", "timeLog", log.id, { hours: data.hours });
-  // Stawka nie wraca do klienta — to pole finansowe.
-  return ok({ ...log, rateSnapshot: null }, 201);
+  // Redakcja przez wspolny helper — recznie wpisane `rateSnapshot: null` bylo
+  // czwarta rownolegla implementacja tej reguly, nie znalo mapy pol finansowych
+  // i zerowalo stawke takze rolom, ktore maja prawo ja widziec.
+  return ok(redact("timeLog", user.role, log), 201);
 });

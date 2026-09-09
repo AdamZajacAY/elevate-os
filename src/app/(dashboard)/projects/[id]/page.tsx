@@ -2,7 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { requireModule } from "@/server/session";
-import { canReadAllProjects, canSeeFinancials, canWriteProject, isAdmin } from "@/lib/rbac";
+import { canSeeFinancials, canWriteProject, isAdmin, projectScopeWhere } from "@/lib/rbac";
 import { Card, CardHeader, StatTile, RedactedValue } from "@/components/ui/Card";
 import { Pill, ragTone, priorityTone } from "@/components/ui/Pill";
 import { EmptyState } from "@/components/ui/EmptyState";
@@ -36,16 +36,11 @@ export default async function ProjectDetailPage({
   const user = await requireModule("projects");
   const { id } = await params;
 
-  // Konsultant widzi projekt tylko jako opiekun albo wykonawca zadania (spec 06).
-  const scope = canReadAllProjects(user.role)
-    ? { id }
-    : {
-        id,
-        OR: [{ ownerId: user.id }, { tasks: { some: { assigneeId: user.id } } }],
-      };
-
+  // Regula widocznosci zyje w `projectScopeWhere` — recznie przepisana kopia
+  // gubila galaz `members`, przez co czlonek zespolu widzial projekt na liscie,
+  // ale jego karta zwracala 404.
   const project = await prisma.project.findFirst({
-    where: scope,
+    where: { id, ...projectScopeWhere(user.role, user.id) },
     include: {
       client: { select: { id: true, name: true, industry: true } },
       owner: { select: { id: true, fullName: true } },

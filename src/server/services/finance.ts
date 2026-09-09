@@ -1,6 +1,8 @@
 import { prisma } from "@/lib/prisma";
+import { isOnTime, startOfDay } from "@/lib/format";
 import {
   BILLING_PERIOD_MONTHS,
+  TERMINAL_STAGES,
   type BillingPeriod,
   type Role,
 } from "@/lib/domain";
@@ -33,6 +35,8 @@ function recurringRevenueToDate(p: {
   recurringAmount: number | null;
   billingStartDate: Date | null;
   billingEndDate: Date | null;
+  status: string;
+  closedAt: Date | null;
 }): number | null {
   if (p.billingModel !== "ABONAMENT") return null;
   if (!p.billingPeriod || p.recurringAmount === null || !p.billingStartDate) return null;
@@ -41,8 +45,14 @@ function recurringRevenueToDate(p: {
   if (!months) return null;
 
   const now = new Date();
-  // Umowa zakonczona nie nalicza sie dalej.
-  const until = p.billingEndDate && p.billingEndDate < now ? p.billingEndDate : now;
+  // Naliczanie konczy sie na najwczesniejszej z trzech dat: koncu umowy,
+  // zamknieciu projektu albo dzisiaj. Bez uwzglednienia zamkniecia abonament
+  // bezterminowy zamknietego projektu rosl co miesiac w nieskonczonosc —
+  // a zamkniecie projektu nie ustawia daty konca rozliczen.
+  const stops = [now];
+  if (p.billingEndDate) stops.push(p.billingEndDate);
+  if (p.status === "CLOSED" && p.closedAt) stops.push(p.closedAt);
+  const until = new Date(Math.min(...stops.map((d) => d.getTime())));
   if (until < p.billingStartDate) return 0;
 
   const monthsElapsed =
@@ -176,16 +186,19 @@ export type ClientFinance = {
   * Wolajacy i tak go potrzebuje, wiec liczymy je raz na zadanie.
   */
 export async function getClientFinance(projects: ProjectFinance[]): Promise<ClientFinance[]> {
-  const clients = await prisma.client.findMany({
-    select: { id: true, name: true, segment: true },
-  });
-  // Grupowanie po id, nie po nazwie: nic nie wymusza unikalnosci nazwy klienta,
-  // a dwoch klientow o tej samej nazwie sumowalo sobie nawzajem przychod i koszt.
+  // Grupowanie po id; `push` zamiast odbudowywania tablicy przy kazdym wstawieniu.
   const byClientId = new Map<string, ProjectFinance[]>();
   for (const p of projects) {
-    byClientId.set(p.clientId, [...(byClientId.get(p.clientId) ?? []), p]);
+    const bucket = byClientId.get(p.clientId);
+    if (bucket) bucket.push(p);
+    else byClientId.set(p.clientId, [p]);
   }
 
+  // Tylko klienci, ktorzy maja projekty — reszta i tak wypadala nizej z filtra.
+  const clients = await prisma.client.findMany({
+    where: { id: { in: [...byClientId.keys()] } },
+    select: { id: true, name: true, segment: true },
+  });
   return clients
     .map((c) => {
       const rows = byClientId.get(c.id) ?? [];
@@ -236,8 +249,12 @@ function workdaysBetween(from: Date, to: Date): number {
  * Zdolnosc = FTE × 8h × dni robocze w oknie; wykorzystanie = godziny / zdolnosc.
  */
 export async function getTeamLoad(days = 30): Promise<ConsultantLoad[]> {
+  // Obie granice okna liczone od poczatku dnia. Wczesniej `from` bylo znacznikiem
+  // chwili, a `workdaysBetween` normalizowal go do polnocy — okno zdolnosci mialo
+  // wiec o dzien wiecej niz okno, z ktorego brane byly godziny, i wykorzystanie
+  // wychodzilo systematycznie zanizone.
   const to = new Date();
-  const from = new Date(to.getTime() - days * 86_400_000);
+  const from = startOfDay(new Date(to.getTime() - days * 86_400_000));
   const capacityDays = workdaysBetween(from, to);
 
   const users = await prisma.user.findMany({
@@ -306,8 +323,8 @@ export async function getTimeliness(): Promise<Timeliness> {
     prisma.milestone.count({ where: { completedAt: null, dueDate: { lt: now } } }),
   ]);
 
-  const tasksOnTime = tasks.filter((t) => t.completedAt! <= t.dueDate!).length;
-  const milestonesOnTime = milestones.filter((m) => m.completedAt! <= m.dueDate).length;
+  const tasksOnTime = tasks.filter((t) => isOnTime(t.completedAt!, t.dueDate!)).length;
+  const milestonesOnTime = milestones.filter((m) => isOnTime(m.completedAt!, m.dueDate)).length;
 
   return {
     tasksOnTime,
@@ -331,8 +348,12 @@ export type PipelineValue = {
 
 /** Pipeline wartosci — przychod prognozowany obok przychodu z realizacji (spec 04). */
 export async function getPipelineValue(): Promise<PipelineValue[]> {
+  // Etapy koncowe wypadaja z prognozy. Sam `status: "OPEN"` nie wystarcza:
+  // przesuniecie karty na ZAKUP selektorem, z pominieciem rozstrzygniecia,
+  // zostawia status otwarty — a wtedy wygrana szansa dokladalaby sie do
+  // prognozy obok projektu, ktory z niej powstal.
   const opportunities = await prisma.opportunity.findMany({
-    where: { status: "OPEN" },
+    where: { status: "OPEN", stage: { notIn: [...TERMINAL_STAGES] } },
     select: { stage: true, value: true, probability: true },
   });
 
@@ -348,8 +369,47 @@ export async function getPipelineValue(): Promise<PipelineValue[]> {
   return [...byStage.values()];
 }
 
-/** Komplet danych raportu executive — jedno wywolanie zamiast pieciu. */
-export async function getExecutiveReport(role: Role) {
+export type FinanceTotals = {
+  activeProjects: number;
+  revenue: number;
+  cost: number;
+  margin: number;
+  marginPct: number | null;
+  hours: number;
+  mrr: number;
+  recurringProjects: number;
+  pipelineWeighted: number;
+};
+
+/**
+ * Agregaty portfela. Jedno miejsce dla pulpitu finansowego, trasy API i raportu
+ * executive — trzy niezalezne kopie tego wyliczenia juz raz sie rozjechaly
+ * (jedna liczyla przychod z `contractValue`, ktore dla abonamentu bezterminowego
+ * jest z definicji puste).
+ */
+export function summarize(projects: ProjectFinance[], pipeline: PipelineValue[]): FinanceTotals {
+  const active = projects.filter((p) => p.status !== "CLOSED");
+  const revenue = active.reduce((sum, p) => sum + (p.revenue ?? 0), 0);
+  const cost = active.reduce((sum, p) => sum + p.totalCost, 0);
+
+  return {
+    activeProjects: active.length,
+    revenue,
+    cost,
+    margin: revenue - cost,
+    marginPct: revenue === 0 ? null : Math.round(((revenue - cost) / revenue) * 100),
+    hours: active.reduce((sum, p) => sum + p.hours, 0),
+    mrr: active.reduce((sum, p) => sum + p.mrr, 0),
+    recurringProjects: active.filter((p) => p.billingModel === "ABONAMENT").length,
+    pipelineWeighted: pipeline.reduce((sum, s) => sum + s.weightedValue, 0),
+  };
+}
+
+/**
+ * Komplet danych pulpitu finansowego i raportu executive.
+ * Jedno wywolanie zamiast piatki powtarzanej w trzech miejscach.
+ */
+export async function getFinanceDashboard(role: Role) {
   if (!canSeeFinancials(role)) throw new Error("Brak uprawnien finansowych");
 
   const [projects, team, timeliness, pipeline] = await Promise.all([
@@ -360,25 +420,9 @@ export async function getExecutiveReport(role: Role) {
   ]);
   const clients = await getClientFinance(projects);
 
-  const active = projects.filter((p) => p.status !== "CLOSED");
-  const revenue = active.reduce((sum, p) => sum + (p.revenue ?? 0), 0);
-  const cost = active.reduce((sum, p) => sum + p.totalCost, 0);
-  const mrr = active.reduce((sum, p) => sum + p.mrr, 0);
-
   return {
     generatedAt: new Date().toISOString(),
-    totals: {
-      activeProjects: active.length,
-      revenue,
-      cost,
-      margin: revenue - cost,
-      marginPct: revenue === 0 ? null : Math.round(((revenue - cost) / revenue) * 100),
-      hours: active.reduce((sum, p) => sum + p.hours, 0),
-      pipelineWeighted: pipeline.reduce((sum, s) => sum + s.weightedValue, 0),
-      // Przychod powtarzalny — baza, ktora firma ma co miesiac bez nowej sprzedazy.
-      mrr,
-      recurringProjects: active.filter((p) => p.billingModel === "ABONAMENT").length,
-    },
+    totals: summarize(projects, pipeline),
     projects,
     clients,
     team,

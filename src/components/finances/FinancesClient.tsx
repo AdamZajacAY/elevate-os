@@ -22,6 +22,7 @@ import type {
   ConsultantLoad,
   Timeliness,
   PipelineValue,
+  FinanceTotals,
 } from "@/server/services/finance";
 
 type Tab = "rentownosc" | "zespol" | "pipeline";
@@ -46,25 +47,23 @@ export function FinancesClient({
   team,
   timeliness,
   pipeline,
+  totals,
 }: {
   projects: ProjectFinance[];
   clients: ClientFinance[];
   team: ConsultantLoad[];
   timeliness: Timeliness;
   pipeline: PipelineValue[];
+  totals: FinanceTotals;
 }) {
   const [tab, setTab] = useState<Tab>("rentownosc");
   const [reportOpen, setReportOpen] = useState(false);
 
+  // Agregaty liczy serwer (`summarize`) — druga, kliencka kopia tego wyliczenia
+  // rozjechala sie z serwerowa: liczyla przychod z `contractValue`, ktore dla
+  // abonamentu bezterminowego jest z definicji puste.
+  const { revenue, cost, margin, marginPct, mrr, recurringProjects, pipelineWeighted } = totals;
   const active = projects.filter((p) => p.status !== "CLOSED");
-  const revenue = active.reduce((sum, p) => sum + (p.contractValue ?? 0), 0);
-  const cost = active.reduce((sum, p) => sum + p.totalCost, 0);
-  const margin = revenue - cost;
-  const marginPct = revenue === 0 ? null : Math.round((margin / revenue) * 100);
-  const pipelineWeighted = pipeline.reduce((sum, s) => sum + s.weightedValue, 0);
-  // Przychód powtarzalny — to, co firma ma co miesiąc bez nowej sprzedaży.
-  const mrr = active.reduce((sum, p) => sum + p.mrr, 0);
-  const recurringCount = active.filter((p) => p.billingModel === "ABONAMENT").length;
 
   return (
     <div className="space-y-6">
@@ -103,7 +102,7 @@ export function FinancesClient({
         <StatTile
           label="Przychód powtarzalny"
           value={formatMoney(mrr) ?? "—"}
-          hint={`miesięcznie · ${recurringCount} ${recurringCount === 1 ? "abonament" : "abonamentów"}`}
+          hint={`miesięcznie · ${recurringProjects} ${recurringProjects === 1 ? "abonament" : "abonamentów"}`}
           tone={mrr > 0 ? "good" : "ink"}
         />
         <StatTile
@@ -230,16 +229,20 @@ export function FinancesClient({
                       {p.subcontractorCost > 0 ? formatMoney(p.subcontractorCost) : "—"}
                     </td>
                     <td className="px-4 py-2.5 text-[11.5px] text-ink-soft">
-                      {p.billingModel === "ABONAMENT" ? (
+                      {p.billingModel !== "ABONAMENT" ? (
+                        "jednorazowo"
+                      ) : p.recurringAmount === null || !p.billingPeriod ? (
+                        // Abonament bez kwoty albo okresu nie da sie policzyc —
+                        // wczesniej renderowal sam wiszacy ukosnik.
+                        <span className="text-warn">abonament — brak kwoty lub okresu</span>
+                      ) : (
                         <>
                           {formatMoney(p.recurringAmount)} /{" "}
-                          {labelOf(BILLING_PERIOD_LABEL, p.billingPeriod ?? "").toLowerCase()}
+                          {labelOf(BILLING_PERIOD_LABEL, p.billingPeriod).toLowerCase()}
                           {p.isOpenEnded && (
                             <span className="ml-1 text-muted">· bezterminowo</span>
                           )}
                         </>
-                      ) : (
-                        "jednorazowo"
                       )}
                     </td>
                     <td className="px-4 py-2.5 text-right font-mono text-[12px] text-ink">
